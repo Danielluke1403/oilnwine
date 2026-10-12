@@ -61,17 +61,6 @@ db.exec(`
   WHERE language IS NULL
 `);
 
-// Initialize Setlists table if not exists
-db.exec(`
-  CREATE TABLE IF NOT EXISTS setlists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    items TEXT NOT NULL,
-    created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
-  );
-`);
-
 // Ensure master admin user exists if no admin exists
 try {
   const adminCheck = db.prepare('SELECT id FROM users WHERE permission >= 2 LIMIT 1').get();
@@ -694,37 +683,6 @@ app.delete('/api/songs/:id', requireAuth, requireAdmin, (req, res) => {
     broadcastState();
   }
   res.json({ message: 'Song deleted successfully' });
-});
-
-// Setlists Endpoints (Sunday Service Queues)
-app.get('/api/setlists', requireAuth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM setlists ORDER BY updated_at DESC').all();
-  const setlists = rows.map(r => ({
-    ...r,
-    items: JSON.parse(r.items || '[]')
-  }));
-  res.json({ setlists });
-});
-
-app.post('/api/setlists', requireAuth, (req, res) => {
-  const { name, items, id } = req.body;
-  if (!name) return res.status(400).json({ error: 'Setlist name is required' });
-
-  const itemsJson = JSON.stringify(items || []);
-  const now = new Date().toISOString();
-
-  if (id) {
-    db.prepare('UPDATE setlists SET name = ?, items = ?, updated_at = ? WHERE id = ?').run(name, itemsJson, now, id);
-    res.json({ message: 'Setlist updated', id });
-  } else {
-    const info = db.prepare('INSERT INTO setlists (name, items, created_at, updated_at) VALUES (?, ?, ?, ?)').run(name, itemsJson, now, now);
-    res.status(201).json({ message: 'Setlist created', id: info.lastInsertRowid });
-  }
-});
-
-app.delete('/api/setlists/:id', requireAuth, (req, res) => {
-  db.prepare('DELETE FROM setlists WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Setlist deleted' });
 });
 
 // Users Management Endpoints (Admin only)

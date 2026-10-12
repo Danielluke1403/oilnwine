@@ -591,7 +591,7 @@ class WorshipController {
     if (!this.cuedSong) {
       this.renderMobileLiveSlides();
       titleEl.textContent = 'Select a Song to Preview';
-      metaEl.textContent = 'Browse the library or setlist';
+      metaEl.textContent = 'Browse the song library';
       statusTag.textContent = 'Private Preview';
       statusTag.className = 'deck-status-tag';
       actionsEl.style.display = 'none';
