@@ -1,0 +1,2 @@
+# This project has no Python dependencies; it is a Node.js application.
+# Install dependencies from package.json with: npm install
