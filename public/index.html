@@ -3,22 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Controller | Oil N Wine</title>
+  <title>Controller | Songs of Overcomer</title>
   <meta name="description" content="Mobile and desktop worship controller for church song presentations.">
-  <link rel="icon" href="/assets/oil-n-wine-logo.webp" type="image/webp">
+  <link rel="icon" href="/assets/songs-of-overcomer-mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=20261022-background-gear">
 </head>
 <body class="controller-body">
   <!-- Top Application Bar -->
   <header class="app-header">
     <div class="header-left">
-      <a class="brand-logo" href="/" aria-label="Oil N Wine homepage">
-        <span class="brand-mark" aria-hidden="true"><img src="/assets/oil-n-wine-logo.webp" alt=""></span>
-        <span>Oil N Wine</span>
+      <a class="brand-logo" href="/" aria-label="Organisation home">
+        <span class="brand-mark" aria-hidden="true"><img id="org-brand-logo" src="/assets/songs-of-overcomer-mark.svg" alt=""></span>
+        <span id="org-brand-name">Songs of Overcomer</span>
       </a>
+      <a href="/" class="btn-header-link controller-home-link" data-return-back aria-label="Return to previous page">← Back</a>
+      <span class="org-name-badge hidden" id="org-name-badge">Organisation</span>
       <div class="live-pill" id="live-pill" role="button" tabindex="0" title="Tap to open the song currently live on the projector" aria-label="Open the song currently live on the projector">
         <span class="pulse-dot"></span>
         <span id="live-status-text">Standby</span>
@@ -42,7 +44,7 @@
         </svg>
       </button>
 
-      <button type="button" class="icon-btn" id="btn-open-settings" title="Display Theme & Font Settings">
+      <button type="button" class="icon-btn" id="btn-open-settings" title="Display background">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"></circle>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -59,6 +61,10 @@
       </button>
 
       <div class="user-profile-menu">
+        <select id="group-select" class="form-select-sm hidden" aria-label="Active group" style="max-width:150px;">
+          <option value="">Loading groups…</option>
+        </select>
+        <span class="controller-active-group" id="controller-active-group">Songbook</span>
         <span class="user-name-badge" id="current-user-name">Operator</span>
         <button type="button" class="btn-logout" id="btn-logout" title="Logout">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -81,8 +87,18 @@
     
     <!-- COLUMN 1: Song Library -->
     <section class="panel panel-library mobile-active" id="panel-library">
-      <!-- Tabs: Songbook and History -->
+      <!-- Tabs: Groups (Admin only), Songbook and History -->
       <div class="panel-tabs">
+        <button type="button" class="tab-btn hidden" id="tab-groups">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Groups</span>
+          <span class="badge" id="badge-total-groups">0</span>
+        </button>
         <button type="button" class="tab-btn active" id="tab-songs">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 18V5l12-2v13"></path>
@@ -90,7 +106,7 @@
             <circle cx="18" cy="16" r="3"></circle>
           </svg>
           <span>Songbook</span>
-          <span class="badge" id="badge-total-songs">20</span>
+          <span class="badge" id="badge-total-songs">0</span>
         </button>
         <button type="button" class="tab-btn" id="tab-history">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -100,6 +116,20 @@
           <span>History</span>
           <span class="badge badge-accent" id="badge-history-count">0</span>
         </button>
+      </div>
+
+      <!-- VIEW: GROUPS (ADMIN ONLY) -->
+      <div class="tab-content hidden" id="view-groups">
+        <div class="groups-overview-toolbar">
+          <div class="groups-overview-info">
+            <h3 id="groups-org-name">Organisation Groups</h3>
+            <span class="results-count" id="groups-overview-count">0 groups</span>
+          </div>
+          <button type="button" class="btn-primary-sm" id="btn-quick-add-group">+ Add Group</button>
+        </div>
+        <div class="groups-cards-container" id="groups-cards-container">
+          <!-- Populated by JS -->
+        </div>
       </div>
 
       <!-- VIEW A: SONGS LIBRARY -->
@@ -119,27 +149,28 @@
             <button type="button" id="btn-clear-search" class="clear-btn hidden" title="Clear search">×</button>
           </div>
 
-          <!-- Language filter pills -->
+          <!-- Songbook tag filters -->
           <div class="filter-pills" id="filter-pills">
-            <button type="button" class="pill active" data-lang="">All</button>
-            <button type="button" class="pill" data-lang="English">English</button>
-            <button type="button" class="pill" data-lang="Malayalam">Malayalam</button>
-            <button type="button" class="pill" data-lang="Tamil">Tamil</button>
-            <button type="button" class="pill" data-lang="Hindi">Hindi</button>
-            <button type="button" class="pill" data-lang="Telugu">Telugu</button>
-            <button type="button" class="pill" data-lang="Nagamese">Nagamese</button>
-            <button type="button" class="pill" data-lang="Other">Other</button>
+            <button type="button" class="pill active" data-tag="">All tags</button>
           </div>
 
           <div class="library-sub-bar">
-            <span class="results-count" id="results-count">Showing 20 songs</span>
-            <button type="button" class="btn-text-action" id="btn-new-song">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>New Song</span>
-            </button>
+            <span class="results-count" id="results-count">Showing songs</span>
+            <div class="library-sub-bar-actions">
+              <button type="button" class="btn-secondary-sm hidden" id="btn-open-master-catalog" title="Browse global catalog to add songs to your songbook">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <span>Master Songs</span>
+              </button>
+              <button type="button" class="btn-text-action" id="btn-new-song">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>New Song</span>
+            </div>
           </div>
         </div>
 
@@ -175,7 +206,7 @@
           <h2 class="deck-song-title" id="deck-song-title">Select a Song to Preview</h2>
           <span class="deck-song-meta" id="deck-song-meta">Browse the library or session history</span>
         </div>
-        <div class="deck-actions" id="deck-actions" style="display:none;">
+        <div class="deck-actions hidden" id="deck-actions">
           <button type="button" class="btn-primary-sm" id="btn-cue-go-live">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -184,6 +215,9 @@
           </button>
           <button type="button" class="btn-secondary-sm" id="btn-edit-cued-song" title="Edit this song">
             Edit
+          </button>
+          <button type="button" class="btn-secondary-sm" id="btn-song-history" title="View song edit history">
+            Version history
           </button>
           <button type="button" class="btn-danger-sm btn-delete-cued-song" id="btn-delete-cued-song" title="Delete this song" style="display:none;">
             Delete
@@ -329,20 +363,75 @@
       </svg>
       <span>Live</span>
     </button>
+    <a href="/display" class="mobile-display-link hidden" id="mobile-open-display" aria-label="Open projector display">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+      <span>Display</span>
+    </a>
   </nav>
 
-  <!-- MODAL: DISPLAY THEME & FONT SETTINGS -->
+  <!-- MODAL: DISPLAY BACKGROUND SETTINGS -->
   <div class="modal-overlay hidden" id="modal-settings">
     <div class="modal-card">
       <div class="modal-header">
-        <h3>Projector Display Styles</h3>
+        <div>
+          <h3>Display background</h3>
+          <p class="modal-subtitle">Choose the background for this group’s display.</p>
+        </div>
         <button type="button" class="modal-close-btn" data-close="modal-settings">×</button>
       </div>
       <div class="modal-body">
+        <section class="org-brand-settings hidden" id="org-brand-settings" aria-labelledby="org-brand-settings-title">
+          <h4 id="org-brand-settings-title">Organisation identity</h4>
+          <p class="modal-subtitle">Set the name, logo, colour, and welcome message members see when they sign in.</p>
+          <p class="org-signin-link">Organisation sign-in page: <a id="org-signin-link" href="#" target="_blank" rel="noopener">Open sign-in page</a></p>
+          <form id="form-org-brand-settings" class="org-brand-form">
+            <div class="form-group">
+              <label for="org-setting-name" class="form-label">Organisation name</label>
+              <input type="text" id="org-setting-name" class="form-input" maxlength="80" required>
+            </div>
+            <div class="form-group">
+              <label for="org-setting-welcome" class="form-label">Welcome message</label>
+              <input type="text" id="org-setting-welcome" class="form-input" maxlength="180" placeholder="Optional message on the sign-in page">
+            </div>
+            <div class="org-brand-form-row">
+              <div class="form-group">
+                <label for="org-setting-color" class="form-label">Brand colour</label>
+                <input type="color" id="org-setting-color" class="color-input" value="#2563eb">
+              </div>
+              <div class="form-group">
+                <label for="org-setting-logo" class="form-label">Upload logo</label>
+                <input type="file" id="org-setting-logo" class="form-input file-input" accept="image/png,image/jpeg,image/webp,image/gif">
+              </div>
+            </div>
+            <div class="org-brand-preview-row">
+              <img id="org-setting-logo-preview" class="org-brand-preview hidden" alt="Organisation logo preview">
+              <button type="button" class="btn-secondary-sm" id="btn-clear-org-logo">Remove current logo</button>
+            </div>
+            <div class="org-brand-form-actions">
+              <p id="org-brand-settings-message" class="form-hint" role="status"></p>
+              <button type="submit" class="btn-primary-sm">Save organisation identity</button>
+            </div>
+          </form>
+          <div class="songbook-tag-settings">
+            <h4>Songbook tags</h4>
+            <p class="modal-subtitle">Add categories such as Youth or Seniors. Each tag has its own song number sequence.</p>
+            <form id="form-songbook-tags" class="org-brand-form-row">
+              <input type="text" id="songbook-tag-name" class="form-input" maxlength="40" placeholder="e.g. Youth" required>
+              <button type="submit" class="btn-secondary-sm">+ Add tag</button>
+            </form>
+            <div id="songbook-tag-list" class="songbook-tag-list"></div>
+            <p id="songbook-tag-message" class="form-hint" role="status"></p>
+          </div>
+          <hr class="settings-divider">
+        </section>
         <div class="form-group">
           <label class="form-label">Background Theme</label>
           <div class="theme-picker-grid">
-            <button type="button" class="theme-option active" data-theme="clean-white">
+            <button type="button" class="theme-option" data-theme="clean-white">
               <div class="theme-preview-box preview-clean-white"></div>
               <span>Clean White (Blue Accent)</span>
             </button>
@@ -358,10 +447,14 @@
               <div class="theme-preview-box preview-cathedral"></div>
               <span>Royal Cathedral</span>
             </button>
+            <button type="button" class="theme-option" data-theme="warm-ember">
+              <div class="theme-preview-box preview-ember"></div>
+              <span>Warm Ember</span>
+            </button>
           </div>
         </div>
 
-        <div class="form-group">
+        <div class="form-group display-typography-setting">
           <div class="label-row">
             <label for="slider-font-size" class="form-label">Projector Font Size</label>
             <span id="font-size-val">52px</span>
@@ -369,7 +462,7 @@
           <input type="range" id="slider-font-size" min="32" max="84" value="54" class="form-range">
         </div>
 
-        <div class="form-group">
+        <div class="form-group display-typography-setting">
           <label for="select-font-family" class="form-label">Typography Style</label>
           <select id="select-font-family" class="form-select">
             <option value="Outfit">Outfit (Modern Clean & Bold)</option>
@@ -379,7 +472,7 @@
           </select>
         </div>
 
-        <div class="form-group">
+        <div class="form-group display-typography-setting">
           <label class="form-label">Text Alignment</label>
           <div class="btn-group-row">
             <button type="button" class="btn-choice active" data-align="center">Center</button>
@@ -395,60 +488,67 @@
     <div class="modal-card modal-card-wide">
       <div class="modal-header">
         <div>
-          <h3>Operator &amp; User Management</h3>
-          <p class="modal-subtitle">Grant or revoke access to the church presentation controller.</p>
+          <h3>Group &amp; Member Management</h3>
+          <p class="modal-subtitle">Manage each group’s members and their access. The songbook is shared across all groups.</p>
         </div>
         <button type="button" class="modal-close-btn" data-close="modal-users">×</button>
       </div>
       <div class="modal-body">
         
-        <!-- Add New User Form -->
-        <form id="form-create-user" class="user-create-box">
-          <h4>Add New Operator</h4>
+        <div id="master-group-create" class="user-create-box hidden">
+          <h4>Create a group</h4>
+          <form id="form-create-group" class="user-form-bottom">
+            <input type="text" id="new-group-name" required placeholder="e.g. Delhi" class="form-input">
+            <button type="submit" class="btn-primary-sm">+ Create Group</button>
+          </form>
+        </div>
+
+        <div id="managed-groups-list" class="managed-groups-list">
+          <div class="empty-state">Loading groups…</div>
+        </div>
+
+        <form id="form-create-user" class="user-create-box hidden">
+          <div class="user-form-bottom">
+            <h4 id="member-form-title">Add a member</h4>
+            <button type="button" class="btn-secondary-sm" id="btn-cancel-add-member">Cancel</button>
+          </div>
           <div class="form-grid-3">
             <div class="form-group">
-              <label for="new-username" class="form-label">Username</label>
-              <input type="text" id="new-username" required placeholder="e.g. Joshua" class="form-input">
+              <label for="new-username" class="form-label">Name (new account)</label>
+              <input type="text" id="new-username" placeholder="e.g. Joshua" class="form-input">
             </div>
             <div class="form-group">
-              <label for="new-email" class="form-label">Email</label>
+              <label for="new-email" class="form-label">Email (existing or new)</label>
               <input type="email" id="new-email" required placeholder="joshua@church.org" class="form-input">
             </div>
             <div class="form-group">
-              <label for="new-password" class="form-label">Password</label>
-              <input type="password" id="new-password" required placeholder="Min 6 characters" class="form-input">
+              <label for="new-password" class="form-label">Password (new account)</label>
+              <input type="password" id="new-password" placeholder="At least 6 characters" class="form-input">
             </div>
           </div>
           <div class="user-form-bottom">
-            <label class="role-select-label">
-              <span>Role:</span>
-              <select id="new-permission" class="form-select-sm">
-                <option value="0">Operator (Control Slides)</option>
-                <option value="2">Admin (Full Access & User Management)</option>
-              </select>
-            </label>
-            <button type="submit" class="btn-primary-sm" id="btn-save-new-user">+ Create User</button>
+            <div class="member-permission-options">
+              <label><input type="checkbox" id="new-can-display" checked> Display</label>
+              <label><input type="checkbox" id="new-can-add-songs"> Add songs</label>
+              <label><input type="checkbox" id="new-can-edit-songs"> Edit shared songs</label>
+              <label id="new-group-admin-option" class="hidden"><input type="checkbox" id="new-is-group-admin"> Group admin</label>
+            </div>
+            <button type="submit" class="btn-primary-sm" id="btn-save-new-user">+ Add Member</button>
           </div>
         </form>
-
-        <!-- User List Table -->
-        <div class="users-table-wrapper">
-          <table class="users-table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="users-table-body">
-              <!-- Populated by JS -->
-            </tbody>
-          </table>
-        </div>
+        <div id="member-form-placeholder" hidden></div>
 
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal-song-versions">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div><h3>Song version history</h3><p class="modal-subtitle">See who changed this shared song and restore an earlier version.</p></div>
+        <button type="button" class="modal-close-btn" data-close="modal-song-versions">×</button>
+      </div>
+      <div class="modal-body" id="song-version-list"></div>
     </div>
   </div>
 
@@ -469,9 +569,17 @@
               <input type="text" id="edit-song-title" required placeholder="e.g. Amazing Grace" class="form-input">
             </div>
             <div class="form-group">
-              <label for="edit-song-alternate" class="form-label">Book # / Alternate Title</label>
-              <input type="text" id="edit-song-alternate" placeholder="e.g. 290 or English 104" class="form-input">
+              <label for="edit-song-alternate" class="form-label">Alternate Title</label>
+              <input type="text" id="edit-song-alternate" placeholder="e.g. Traditional" class="form-input">
             </div>
+          </div>
+
+          <div class="form-group">
+            <label for="edit-song-tag" class="form-label">Songbook tag *</label>
+            <select id="edit-song-tag" required class="form-input">
+              <option value="" disabled selected>Choose a tag</option>
+            </select>
+            <span class="label-hint">Song numbers increase separately for each tag.</span>
           </div>
 
           <div class="form-group">
@@ -520,6 +628,79 @@
     </div>
   </div>
 
-  <script src="/js/controller.js"></script>
+  <!-- MODAL: MASTER SONGS EXPLORER -->
+  <div class="modal-overlay hidden" id="modal-master-songs">
+    <div class="modal-card modal-card-wide">
+      <div class="modal-header">
+        <div>
+          <h3>Master Songs Catalog</h3>
+          <p class="modal-subtitle">Browse all songs in the world and add them directly into your organisation's songbook.</p>
+        </div>
+        <button type="button" class="modal-close-btn" data-close="modal-master-songs">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="library-toolbar">
+          <div class="search-box">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="master-song-search-input" placeholder="Search by title, lyrics..." autocomplete="off">
+            <button type="button" id="btn-clear-master-search" class="clear-btn hidden" title="Clear search">×</button>
+          </div>
+          <span class="results-count" id="master-results-count">Loading master songs…</span>
+        </div>
+
+        <div class="master-songs-list" id="master-songs-list">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORT PROMPT (CONFIRM SONG NUMBER) -->
+  <div class="modal-overlay hidden" id="modal-import-song">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="import-song-title">Add to Organisation Songbook</h3>
+          <p class="modal-subtitle">Choose the song language and songbook tag. Its number is assigned automatically within that tag.</p>
+        </div>
+        <button type="button" class="modal-close-btn" data-close="modal-import-song">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="form-import-song">
+          <input type="hidden" id="import-master-song-id">
+          <div class="form-group">
+            <label for="import-song-tag" class="form-label">Songbook tag</label>
+            <select id="import-song-tag" class="form-input" required>
+              <option value="" disabled selected>Choose a tag</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="import-song-language" class="form-label">Song language</label>
+            <select id="import-song-language" class="form-input" required>
+              <option value="" disabled selected>Choose a language</option>
+              <option>English</option>
+              <option>Malayalam</option>
+              <option>Tamil</option>
+              <option>Hindi</option>
+              <option>Telugu</option>
+              <option>Nagamese</option>
+              <option>Other</option>
+            </select>
+            <span class="label-hint" id="import-suggested-number">The next song number will be assigned automatically.</span>
+          </div>
+          <div class="modal-footer-actions">
+            <button type="button" class="btn-ghost-sm" data-close="modal-import-song">Cancel</button>
+            <button type="submit" class="btn-primary" id="btn-confirm-import">+ Add to Songbook</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/controller.js?v=20261022-background-gear"></script>
+  <script src="/js/back-link.js?v=20261022"></script>
 </body>
 </html>

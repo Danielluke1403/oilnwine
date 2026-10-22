@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Groups | Songs of Overcomer</title>
+  <link rel="icon" href="/assets/songs-of-overcomer-mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/groups.css?v=20261022-mobile-no-back">
+</head>
+<body>
+  <header class="groups-header">
+    <div class="groups-brand-row"><a class="groups-brand" href="/"><img id="groups-logo" src="/assets/songs-of-overcomer-mark.svg" alt=""><span id="groups-org-name">Organisation</span></a><a href="/" class="page-back" data-return-back>← Back</a></div>
+    <div class="groups-user"><span id="groups-user-label">Member</span></div>
+  </header>
+  <main class="groups-main">
+    <div class="page-heading"><div><p class="eyebrow">ORGANISATION ADMINISTRATION</p><h1>Groups &amp; members</h1><p>Control who can present songs and manage each group’s access.</p></div><span class="total-badge" id="groups-total">Loading…</span></div>
+    <div class="groups-layout">
+      <aside class="group-list-panel">
+        <div class="panel-heading"><h2>Groups</h2><button id="btn-add-group" class="text-button hidden" type="button">+ Add</button></div>
+        <form id="form-new-group" class="new-group-form hidden"><input id="new-group-name" type="text" placeholder="Group name" required maxlength="80"><button type="submit" aria-label="Create group">+</button></form>
+        <div id="group-list" class="group-list"><p class="muted">Loading groups…</p></div>
+      </aside>
+      <section class="member-panel">
+        <div id="empty-members" class="empty-members"><span class="empty-icon">♟</span><h2>Select a group</h2><p>Choose a group to view and manage its members.</p></div>
+        <div id="members-content" class="hidden">
+          <div id="group-management-toolbar" class="group-management-toolbar hidden">
+            <div class="group-management-actions"><button id="btn-rename-group" class="group-tool-button" type="button">Rename group</button><button id="btn-delete-group" class="group-tool-button danger" type="button">Delete group</button></div>
+            <form id="form-rename-group" class="inline-group-form hidden"><label for="rename-group-name">Group name</label><input id="rename-group-name" type="text" maxlength="80" required><div class="inline-form-actions"><button class="primary-button" type="submit">Save name</button><button id="btn-cancel-rename-group" class="secondary-button" type="button">Cancel</button></div></form>
+            <div id="confirm-delete-group" class="inline-delete-confirm hidden"><div><strong>Delete this group?</strong><p id="delete-group-message">Its members will be removed from this group.</p></div><div class="inline-form-actions"><button id="btn-confirm-delete-group" class="delete-confirm-button" type="button">Delete group</button><button id="btn-cancel-delete-group" class="secondary-button" type="button">Cancel</button></div></div>
+          </div>
+          <div class="member-panel-heading"><div><p class="eyebrow">GROUP ROSTER</p><h2 id="selected-group-title">Group</h2><p id="selected-group-note">Manage members and permissions.</p></div><button id="btn-show-add-member" class="primary-button" type="button">+ Add member</button></div>
+          <div id="member-list" class="member-list"><p class="muted">Loading members…</p></div>
+          <form id="form-add-member" class="add-member-form hidden">
+            <div class="form-heading"><div><h3>Add a member</h3><p>Use an existing account email, or create a new account.</p></div><button id="btn-cancel-member" class="close-button" type="button" aria-label="Close">×</button></div>
+            <div class="form-grid"><label>Username <input id="member-username" autocomplete="off" placeholder="Required for a new account"></label><label>Email address <input id="member-email" type="email" required autocomplete="off"></label><label>Password <input id="member-password" type="password" minlength="6" autocomplete="new-password" placeholder="Required for a new account"></label></div>
+            <div class="permission-row"><label class="admin-role hidden" id="member-admin-role"><input type="checkbox" id="member-is-admin"> Group admin</label><label><input type="checkbox" id="member-can-display" checked> Can present</label><label><input type="checkbox" id="member-can-add"> Can add songs</label><label><input type="checkbox" id="member-can-edit"> Can edit songs</label></div>
+            <div class="form-actions"><span id="member-form-message" role="status"></span><button class="primary-button" type="submit">Add to group</button></div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+  <div id="groups-alert" class="groups-alert hidden" role="alert"></div>
+  <script src="/js/groups.js?v=20261022-create-group-reload"></script>
+  <script src="/js/back-link.js?v=20261022"></script>
+</body>
+</html>

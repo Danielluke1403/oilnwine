@@ -12,9 +12,6 @@ class DisplayClient {
     
     // DOM Elements
     this.slideContent = document.getElementById('slide-content');
-    this.metaSongTitle = document.getElementById('meta-song-title');
-    this.metaStanza = document.getElementById('meta-stanza');
-    this.metaBadge = document.getElementById('meta-badge');
     this.connectionStatus = document.getElementById('connection-status');
     this.btnFullscreen = document.getElementById('btn-fullscreen');
     this.iconExpand = this.btnFullscreen.querySelector('.icon-expand');
@@ -24,14 +21,40 @@ class DisplayClient {
   }
 
   init() {
+    this.loadOrganizationBranding();
     this.connectWebSocket();
     this.setupEventListeners();
     this.setupIdleCursor();
   }
 
+  async loadOrganizationBranding() {
+    const orgId = new URLSearchParams(window.location.search).get('orgId');
+    if (!orgId) return;
+    try {
+      const response = await fetch(`/api/organization-brand?id=${encodeURIComponent(orgId)}`);
+      if (!response.ok) return;
+      const { organization } = await response.json();
+      document.title = `Projector Display | ${organization.name}`;
+      document.getElementById('standby-title').textContent = organization.name;
+      if (organization.welcomeText) document.getElementById('standby-subtitle').textContent = organization.welcomeText;
+      if (organization.logoData) {
+        const logo = document.getElementById('standby-logo');
+        logo.src = organization.logoData;
+        logo.alt = organization.name;
+        const favicon = document.querySelector('link[rel="icon"]');
+        if (favicon) favicon.href = organization.logoData;
+      }
+    } catch (error) {
+      console.warn('Could not load organisation branding.', error);
+    }
+  }
+
   connectWebSocket() {
+    const params = new URLSearchParams(window.location.search);
+    const orgId = params.get('orgId') || '';
+    const groupId = params.get('groupId') || '';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const wsUrl = `${protocol}//${window.location.host}?client=display&orgId=${encodeURIComponent(orgId)}&groupId=${encodeURIComponent(groupId)}`;
 
     try {
       this.ws = new WebSocket(wsUrl);
@@ -220,11 +243,6 @@ class DisplayClient {
       this.slideContent.classList.remove('transition-out');
       this.slideContent.classList.add('transition-in');
 
-      // Update meta badge
-      const numPrefix = currentSong.alternate_title ? `#${currentSong.alternate_title} • ` : '';
-      this.metaSongTitle.textContent = `${numPrefix}${currentSong.title}`;
-      this.metaStanza.textContent = `${slide.label} (${activeSlideIndex + 1}/${currentSong.slides.length})`;
-      this.metaBadge.classList.remove('hidden');
       requestAnimationFrame(() => this.checkSlideFit(currentSong));
       document.fonts.ready.then(() => this.checkSlideFit(currentSong));
 
@@ -263,7 +281,6 @@ class DisplayClient {
         <p class="standby-subtitle">Waiting for operator to project a song...</p>
       </div>
     `;
-    this.metaBadge.classList.add('hidden');
   }
 
   escapeHtml(str) {

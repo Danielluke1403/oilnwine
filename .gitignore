@@ -5,6 +5,8 @@ node_modules/
 *.db
 *.db-*
 *.db.bak
+data/
+!seed/master_songs.db
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*

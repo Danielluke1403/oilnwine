@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projector Display | Oil N Wine</title>
-  <link rel="icon" href="/assets/oil-n-wine-logo.webp" type="image/webp">
+  <title>Projector Display | Songs of Overcomer</title>
+  <link rel="icon" href="/assets/songs-of-overcomer-mark.svg" type="image/svg+xml">
   <meta name="description" content="Fullscreen projector and large display presentation view for church song lyrics with real-time sync.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/display.css">
+  <link rel="stylesheet" href="/css/display.css?v=20261022-no-song-meta">
 </head>
 <body class="theme-clean-white">
   <!-- Dynamic Atmospheric Background -->
@@ -31,21 +31,13 @@
       <div class="slide-content transition-fade" id="slide-content">
         <!-- Rendered lines go here -->
         <div class="standby-screen">
-          <img class="standby-logo" src="/assets/oil-n-wine-logo.webp" alt="Oil N Wine">
-          <h1 class="standby-title">Oil N Wine</h1>
-          <p class="standby-subtitle">Waiting for operator to project a song...</p>
+          <img class="standby-logo" id="standby-logo" src="/assets/songs-of-overcomer-mark.svg" alt="Songs of Overcomer">
+          <h1 class="standby-title" id="standby-title">Songs of Overcomer</h1>
+          <p class="standby-subtitle" id="standby-subtitle">Waiting for operator to project a song...</p>
         </div>
       </div>
     </div>
 
-    <!-- Song Info / Stanza Badge (Subtle footer) -->
-    <footer class="song-meta-footer" id="song-meta-footer">
-      <div class="meta-badge" id="meta-badge">
-        <span class="meta-title" id="meta-song-title"></span>
-        <span class="meta-sep" id="meta-sep">•</span>
-        <span class="meta-stanza" id="meta-stanza"></span>
-      </div>
-    </footer>
   </main>
 
   <!-- Discrete Floating Exit Fullscreen Button (Visible in Fullscreen) -->
@@ -59,6 +51,7 @@
 
   <!-- Floating Control Bar (Auto-hides on idle) -->
   <nav class="display-controls" id="display-controls" aria-label="Display Controls">
+    <a class="ctrl-btn" id="btn-back-controller" href="/controller" data-return-back aria-label="Return to the previous page">← Back</a>
     <button type="button" class="ctrl-btn" id="btn-fullscreen" title="Toggle Fullscreen (F)">
       <svg class="icon-expand" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
@@ -70,6 +63,7 @@
     </button>
   </nav>
 
-  <script src="/js/display.js"></script>
+  <script src="/js/display.js?v=20261022-no-song-meta"></script>
+  <script src="/js/back-link.js?v=20261022"></script>
 </body>
 </html>

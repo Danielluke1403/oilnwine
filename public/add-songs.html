@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Songbooks</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/home.css?v=20261022-mobile-no-back">
+  <link rel="stylesheet" href="/css/add-songs.css?v=20261022-mobile-device-width">
+</head>
+<body class="home-body add-songs-body">
+  <header class="home-header">
+    <div class="page-brand-group"><a href="/" class="home-brand"><img id="org-logo" src="/assets/songs-of-overcomer-mark.svg" alt=""><span id="org-brand">Songs of Overcomer</span></a><a href="/" class="page-back" data-return-back>← Back</a></div>
+    <div class="home-org-heading"><span>SONG LIBRARY</span><a id="org-name" href="/">Loading…</a></div>
+    <div class="home-account"><span class="avatar" id="user-avatar">U</span><strong id="user-name">User</strong></div>
+  </header>
+
+  <main class="songs-main">
+    <div class="songs-intro"><div><p class="eyebrow">ORGANISATION SONGBOOK</p><h2>Songbooks</h2><p>Each tag has its own songbook and numbering sequence.</p></div><button class="primary-button" id="open-add" type="button">＋ Add a song</button></div>
+    <div id="songs-alert" class="songs-alert hidden" role="status"></div>
+    <section class="songbooks-layout">
+      <aside class="songbook-sidebar"><h3>Your songbooks</h3><div id="tag-list" class="tag-list"><p class="muted">Loading songbooks…</p></div></aside>
+      <section class="songbook-content">
+        <div class="songbook-heading"><div><span class="eyebrow">SELECTED SONGBOOK</span><h3 id="selected-tag">Loading…</h3></div><span id="song-count" class="song-count"></span></div>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="song-search" type="search" placeholder="Search this songbook by title or lyrics"></label>
+        <div id="song-list" class="song-list"><p class="muted">Loading songs…</p></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="add-dialog" class="add-dialog">
+    <div class="dialog-top"><div><p class="eyebrow">SONGBOOK TOOLS</p><h2>Add to <span id="dialog-tag-name"></span></h2></div><button class="close-button" id="close-dialog" type="button" aria-label="Close">×</button></div>
+    <div class="add-tabs" role="tablist"><button class="add-tab active" data-panel="manual-panel" type="button">Write a song</button><button class="add-tab" data-panel="master-panel" type="button">Browse master catalog</button></div>
+    <section id="manual-panel" class="add-panel">
+      <form id="manual-form" class="song-form">
+        <label>Songbook <select id="manual-tag" required></select></label>
+        <label>Song title <input name="title" required maxlength="200" placeholder="Enter song title"></label>
+        <label>Language <select name="language" required><option>English</option><option>Malayalam</option><option>Tamil</option><option>Hindi</option><option>Telugu</option><option>Nagamese</option><option>Other</option></select></label>
+        <label>Alternate title <input name="alternate_title" placeholder="Optional"></label>
+        <label>Lyrics <textarea name="lyrics" rows="7" placeholder="Type or paste the lyrics"></textarea></label>
+        <label>Transliteration <textarea name="transliteration" rows="4" placeholder="Optional"></textarea></label>
+        <label>Chords <textarea name="chord" rows="3" placeholder="Optional"></textarea></label>
+        <button class="primary-button" type="submit">Add to songbook</button>
+      </form>
+    </section>
+    <section id="master-panel" class="add-panel hidden">
+      <label>Songbook <select id="master-tag"></select></label>
+      <label class="search-box master-search"><span aria-hidden="true">⌕</span><input id="master-search" type="search" placeholder="Search the master catalog"></label>
+      <div id="master-list" class="master-list"><p class="muted">Search for a song to get started.</p></div>
+    </section>
+  </dialog>
+  <script src="/js/add-songs.js?v=20261022-dynamic-songbook"></script>
+  <script src="/js/back-link.js?v=20261022"></script>
+</body>
+</html>

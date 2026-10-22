@@ -411,3 +411,14 @@ body.cursor-hidden .display-controls {
 .hidden {
   display: none !important;
 }
+
+@media (max-width: 600px) {
+  .presentation-stage { padding: max(18px, env(safe-area-inset-top, 0px)) 6vw max(24px, env(safe-area-inset-bottom, 0px)); }
+  .lyric-line-group { gap: 0.25rem; }
+  .lyric-main { line-height: 1.18; overflow-wrap: anywhere; }
+  .lyric-translit { line-height: 1.18; overflow-wrap: anywhere; }
+  .display-controls { right: max(10px, env(safe-area-inset-right, 0px)); bottom: max(10px, env(safe-area-inset-bottom, 0px)); gap: 0.35rem; padding: 0.3rem; }
+  .connection-status { display: none; }
+  .ctrl-btn { min-width: 40px; min-height: 40px; justify-content: center; padding: 0.45rem; }
+  .meta-badge { max-width: calc(100vw - 32px); font-size: 0.72rem; }
+}

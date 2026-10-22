@@ -57,6 +57,10 @@ body {
   background: #ffffff;
 }
 
+.hidden {
+  display: none !important;
+}
+
 .brand-icon img {
   display: block;
   width: 100%;
@@ -74,6 +78,37 @@ body {
   text-transform: uppercase;
   color: #09090b;
   text-shadow: 1px 1px 0 #c9f7cc;
+}
+
+.optional-label {
+  color: var(--login-muted);
+  font-weight: 400;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.35fr) minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+.form-input-plain {
+  padding-left: 0.85rem;
+}
+
+.color-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.35rem;
+  border: 1px solid #cfd5dc;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.file-input {
+  min-height: 48px;
+  padding: 0.55rem;
+  font-size: 0.78rem;
 }
 
 .login-title {
@@ -249,6 +284,49 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.login-subtitle {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--login-muted);
+  line-height: 1.4;
+}
+
+.login-subtitle.hidden {
+  display: none;
+}
+
+.form-switch-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--login-border);
+  font-size: 0.88rem;
+  color: var(--login-muted);
+}
+
+.link-btn {
+  display: inline-block;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--login-blue);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 140ms ease;
+}
+
+.link-btn:hover {
+  color: var(--login-blue-hover);
 }
 
 @media (max-width: 480px) {

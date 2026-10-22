@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login | Oil N Wine</title>
-  <meta name="description" content="Sign in to Oil N Wine.">
-  <link rel="icon" href="/assets/oil-n-wine-logo.webp" type="image/webp">
+  <title>Sign in | Songs of Overcomer</title>
+  <meta name="description" content="Sign in to Songs of Overcomer.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -13,17 +12,19 @@
 </head>
 <body>
   <main class="login-wrapper">
-    <section class="login-card" aria-labelledby="login-title">
+    <section class="login-card" aria-labelledby="card-title">
       <div class="brand-header">
         <div class="brand-lockup">
-          <div class="brand-icon"><img src="/assets/oil-n-wine-logo.webp" alt=""></div>
-          <p class="brand-title">Oil N Wine</p>
+          <div class="brand-icon hidden" id="brand-icon"><img id="brand-logo" alt=""></div>
+          <p class="brand-title" id="brand-title">Songs of Overcomer</p>
         </div>
-        <h1 class="login-title" id="login-title">Sign in</h1>
+        <h1 class="login-title" id="card-title">Sign in</h1>
+        <p class="login-subtitle hidden" id="brand-welcome"></p>
       </div>
 
       <div id="alert-box" class="alert-box hidden" role="alert"></div>
 
+      <!-- VIEW 1: SIGN IN FORM -->
       <form id="login-form" class="login-form" autocomplete="on">
         <div class="form-group">
           <label for="username" class="form-label">Email or username</label>
@@ -76,6 +77,11 @@
           </svg>
           <span class="spinner hidden" id="login-spinner"></span>
         </button>
+
+        <div class="form-switch-prompt">
+          <span>Not part of an organisation?</span>
+          <a href="/register.html" class="link-btn">Register your organisation</a>
+        </div>
       </form>
 
     </section>

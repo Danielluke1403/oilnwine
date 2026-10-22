@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home | Songs of Overcomer</title>
+  <link rel="icon" href="/assets/songs-of-overcomer-mark.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/home.css?v=20261022-mobile-no-back">
+</head>
+<body class="home-body">
+  <header class="home-header">
+    <a href="/" class="home-brand" aria-label="Organisation home">
+      <img id="home-org-logo" src="/assets/songs-of-overcomer-mark.svg" alt="">
+      <span id="home-brand-name">Songs of Overcomer</span>
+    </a>
+    <div class="home-org-heading">
+      <span>ORGANISATION</span>
+      <h1 id="home-org-name">Loading…</h1>
+    </div>
+    <div class="home-account">
+      <label class="sr-only" for="home-org-select">Active organisation</label>
+      <select id="home-org-select" class="hidden" aria-label="Active organisation"></select>
+      <label class="sr-only" for="home-group-select">Active group</label>
+      <select id="home-group-select" aria-label="Active group"></select>
+      <a id="home-settings" class="icon-button hidden" href="/settings" title="Organisation settings" aria-label="Organisation settings">⚙</a>
+      <div class="home-user">
+        <span class="avatar" id="home-avatar">U</span>
+        <span><strong id="home-user-name">User</strong><small id="home-user-role">Member</small></span>
+      </div>
+      <button id="home-logout" class="icon-button" type="button" title="Log out" aria-label="Log out">↗</button>
+    </div>
+  </header>
+
+  <main class="home-main">
+    <section class="welcome-row">
+      <div>
+        <p class="eyebrow">YOUR WORKSPACE</p>
+        <h2 id="home-greeting">Welcome back</h2>
+        <p id="home-subtitle">Choose what you’d like to do.</p>
+      </div>
+      <div class="live-status"><span class="live-dot"></span><span id="home-live-status">Ready for service</span></div>
+    </section>
+
+    <section class="home-grid" aria-label="Organisation workspace">
+      <a class="workspace-card admin-only hidden" id="home-groups-card" href="/groups.html">
+        <span class="card-icon icon-blue" aria-hidden="true">♟</span>
+        <span class="card-label">ADMINISTRATION</span>
+        <strong>Groups &amp; members</strong>
+        <span class="card-description" id="home-groups-description">Manage groups, members, and their access.</span>
+        <span class="card-footer"><span id="home-group-count">Groups</span><span class="card-arrow">→</span></span>
+      </a>
+
+      <a class="workspace-card" id="home-songbook-card" href="/controller">
+        <span class="card-icon icon-green" aria-hidden="true">♫</span>
+        <span class="card-label">SONG LIBRARY</span>
+        <strong>Songbook</strong>
+        <span class="card-description">Browse songs and choose lyrics for the service.</span>
+        <span class="card-footer"><span id="home-song-count">Open songbook</span><span class="card-arrow">→</span></span>
+      </a>
+
+      <a class="workspace-card workspace-primary hidden" id="home-controller-card" href="/controller">
+        <span class="card-icon icon-violet" aria-hidden="true">▣</span>
+        <span class="card-label">PRESENTATION</span>
+        <strong>Controller</strong>
+        <span class="card-description">Select a song, manage slides, and send it to the screen.</span>
+        <span class="card-footer"><span id="home-controller-group">Open controller</span><span class="card-arrow">→</span></span>
+      </a>
+
+      <a class="workspace-card hidden" id="home-add-songs-card" href="/controller?open=add">
+        <span class="card-icon icon-amber" aria-hidden="true">＋</span>
+        <span class="card-label">SONGBOOK TOOLS</span>
+        <strong>Add songs</strong>
+        <span class="card-description">Add a song or import one from the master catalog.</span>
+        <span class="card-footer"><span>Add to this organisation</span><span class="card-arrow">→</span></span>
+      </a>
+
+      <a class="workspace-card hidden" id="home-display-card" href="/display" target="_blank" rel="noopener">
+        <span class="card-icon icon-sky" aria-hidden="true">▷</span>
+        <span class="card-label">SECOND SCREEN</span>
+        <strong>Display page</strong>
+        <span class="card-description">Open the full-screen projector display for the active group.</span>
+        <span class="card-footer"><span id="home-display-group">Open projector</span><span class="card-arrow">↗</span></span>
+      </a>
+
+      <a class="workspace-card admin-only hidden" id="home-settings-card" href="/settings">
+        <span class="card-icon icon-slate" aria-hidden="true">⚙</span>
+        <span class="card-label">ORGANISATION</span>
+        <strong>Settings &amp; tags</strong>
+        <span class="card-description">Update the organisation’s identity, display theme, and songbook tags.</span>
+        <span class="card-footer"><span>Manage settings</span><span class="card-arrow">→</span></span>
+      </a>
+    </section>
+  </main>
+
+  <div id="home-alert" class="home-alert hidden" role="status"></div>
+  <script src="/js/home.js?v=20261022"></script>
+</body>
+</html>

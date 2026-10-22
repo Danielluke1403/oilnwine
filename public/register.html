@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | Songs of Overcomer</title>
+  <meta name="description" content="Create an organisation on Songs of Overcomer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+  <main class="login-wrapper">
+    <section class="login-card" aria-labelledby="card-title">
+      <div class="brand-header">
+        <div class="brand-lockup">
+          <div class="brand-icon hidden" id="brand-icon"><img id="brand-logo" alt=""></div>
+          <p class="brand-title" id="brand-title">Songs of Overcomer</p>
+        </div>
+        <h1 class="login-title" id="card-title">Register Organisation</h1>
+        <p class="login-subtitle">Register your organisation and start presenting songs.</p>
+      </div>
+
+      <div id="alert-box" class="alert-box hidden" role="alert"></div>
+
+      <form id="register-org-form" class="login-form" autocomplete="on">
+        <div class="form-group">
+          <label for="reg-org-name" class="form-label">Organisation name</label>
+          <div class="input-container">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18"></path><path d="M9 8h1"></path><path d="M9 12h1"></path><path d="M9 16h1"></path><path d="M14 8h1"></path><path d="M14 12h1"></path><path d="M14 16h1"></path><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"></path></svg>
+            <input type="text" id="reg-org-name" class="form-input" placeholder="e.g. Grace Fellowship" autocomplete="organization" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="reg-welcome-text" class="form-label">Welcome message <span class="optional-label">(optional)</span></label>
+          <input type="text" id="reg-welcome-text" class="form-input form-input-plain" maxlength="180" placeholder="e.g. Worship together">
+        </div>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="reg-brand-color" class="form-label">Brand colour</label>
+            <input type="color" id="reg-brand-color" class="color-input" value="#2563eb" aria-label="Choose your organisation brand colour">
+          </div>
+          <div class="form-group">
+            <label for="reg-logo" class="form-label">Organisation logo <span class="optional-label">(optional)</span></label>
+            <input type="file" id="reg-logo" class="form-input file-input" accept="image/png,image/jpeg,image/webp,image/gif">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="reg-username" class="form-label">Your name / username</label>
+          <div class="input-container">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <input type="text" id="reg-username" class="form-input" placeholder="e.g. Joshua" autocomplete="username" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="reg-email" class="form-label">Email address</label>
+          <div class="input-container">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2-2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <input type="email" id="reg-email" class="form-input" placeholder="joshua@church.org" autocomplete="email" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <div class="label-row">
+            <label for="reg-password" class="form-label">Password</label>
+            <button type="button" id="toggle-reg-password" class="text-btn" aria-label="Toggle password visibility">Show</button>
+          </div>
+          <div class="input-container">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <input type="password" id="reg-password" class="form-input" placeholder="At least 6 characters" autocomplete="new-password" minlength="6" required>
+          </div>
+        </div>
+        <button type="submit" id="btn-register-org" class="btn-primary">
+          <span class="btn-text">Register Organisation</span>
+          <svg class="btn-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          <span class="spinner hidden" id="reg-spinner"></span>
+        </button>
+        <div class="form-switch-prompt">
+          <span>Already have an account?</span>
+          <a href="/login" class="link-btn">Sign in</a>
+        </div>
+      </form>
+    </section>
+  </main>
+  <script src="/js/register.js"></script>
+</body>
+</html>

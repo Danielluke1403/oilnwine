@@ -7,11 +7,17 @@ class WorshipController {
     // History is per page session: clear it on refresh, then record new song changes.
     localStorage.removeItem(this.historyStorageKey);
     this.currentUser = null;
+    this.currentGroupId = null;
+    this.groups = [];
+    this.manageGroups = [];
+    this.managedGroupRoster = [];
     this.ws = null;
+    this.pendingWsActions = [];
     this.liveState = null;
     this.cuedSong = null; // Song in private preview deck
-    this.currentLanguage = '';
+    this.currentSongbookTag = '';
     this.songs = [];
+    this.songbookTags = [];
     this.sessionHistory = [];
     this.ignoreInitialLiveState = true;
     this.searchDebounce = null;
@@ -30,12 +36,20 @@ class WorshipController {
   async init() {
     const authenticated = await this.verifyAuth();
     if (!authenticated) return;
+    await this.loadSongbookTags();
     this.initWebSocket();
     this.bindDOM();
+    // Songs are shared across the whole app. A group is needed to display or
+    // change them, but not to browse or preview the songbook.
+    if (!this.currentGroupId) this.showNoGroupMessage();
     this.loadSongs();
     this.renderHistory();
     this.bindKeyboardShortcuts();
     this.setupMobileTabs();
+    const requestedAction = new URLSearchParams(window.location.search).get('open');
+    if (requestedAction === 'add') document.getElementById('btn-new-song')?.click();
+    if (requestedAction === 'master') document.getElementById('btn-open-master-catalog')?.click();
+    if (new URLSearchParams(window.location.search).get('settings') === '1') document.getElementById('btn-open-settings')?.click();
   }
 
   async apiFetch(url, { method = 'GET', body, headers = {} } = {}) {
@@ -48,8 +62,14 @@ class WorshipController {
       headers: requestHeaders,
       body: body === undefined ? undefined : JSON.stringify(body)
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+    const responseText = await response.text();
+    let data = {};
+    try { data = responseText ? JSON.parse(responseText) : {}; }
+    catch { data = { error: responseText.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240) }; }
+    if (!response.ok) {
+      const detail = data.error || data.message || responseText.trim();
+      throw new Error(detail || `${method} ${url} failed with HTTP ${response.status}. Check the server terminal for details.`);
+    }
     return data;
   }
 
@@ -61,20 +81,37 @@ class WorshipController {
     try {
       const data = await this.apiFetch('/api/auth/me');
       this.currentUser = data.user;
+      this.applyOrganizationBranding();
+      this.currentGroupId = Number(data.user.activeGroupId || (data.user.groups[0] && data.user.groups[0].id)) || null;
+      this.groups = data.user.groups || [];
+      this.manageGroups = this.groups.filter(group => group.role === 'group_admin');
+      this.renderGroupSelectors();
 
-      // Update User Name in header
+      // Update User Name and Organisation badge in header
       const nameEl = document.getElementById('current-user-name');
       if (nameEl) {
-        nameEl.textContent = `${this.currentUser.username}${this.currentUser.permission >= 2 ? ' (Admin)' : ''}`;
+        nameEl.textContent = `${this.currentUser.username}${this.currentUser.isMasterAdmin ? ' (Master)' : ''}`;
+      }
+      const orgBadge = document.getElementById('org-name-badge');
+      if (orgBadge) orgBadge.classList.add('hidden');
+
+      // Check Admin access
+      const isOrgAdmin = Boolean(this.currentUser.isMasterAdmin || this.currentUser.isOrgAdmin);
+      const tabGroups = document.getElementById('tab-groups');
+      if (tabGroups) {
+        tabGroups.classList.toggle('hidden', !isOrgAdmin);
+        if (isOrgAdmin) this.loadGroupsOverview();
       }
 
-      // Show user management button if admin
-      if (this.currentUser.permission >= 2) {
+      this.updateGroupPermissions();
+      const groupAdmin = isOrgAdmin || this.currentUser.activeGroup?.role === 'group_admin';
+      if (groupAdmin) {
         const btnUsers = document.getElementById('btn-open-users');
         if (btnUsers) btnUsers.style.display = 'inline-flex';
-        const btnDeleteSong = document.getElementById('btn-delete-cued-song');
-        if (btnDeleteSong) btnDeleteSong.style.display = 'inline-flex';
       }
+      const organizationSettings = document.getElementById('org-brand-settings');
+      if (organizationSettings) organizationSettings.classList.toggle('hidden', !isOrgAdmin);
+      if (this.currentUser.isMasterAdmin) document.getElementById('btn-delete-cued-song').style.display = 'inline-flex';
       return true;
     } catch (e) {
       localStorage.removeItem('oilnwine_token');
@@ -84,14 +121,79 @@ class WorshipController {
     }
   }
 
+  applyOrganizationBranding() {
+    const organization = this.currentUser?.activeOrganization;
+    if (!organization) return;
+    const logo = document.getElementById('org-brand-logo');
+    const name = document.getElementById('org-brand-name');
+    if (name) name.textContent = organization.name;
+    if (logo) logo.src = organization.logoData || '/assets/songs-of-overcomer-mark.svg';
+    document.title = `Controller | ${organization.name}`;
+    document.documentElement.style.setProperty('--accent-primary', organization.brandColor || '#2563eb');
+    document.documentElement.style.setProperty('--accent-hover', organization.brandColor || '#1d4ed8');
+    const favicon = document.querySelector('link[rel="icon"]');
+    if (favicon) favicon.href = organization.logoData || '/assets/songs-of-overcomer-mark.svg';
+    const section = document.getElementById('org-brand-settings');
+    if (!section) return;
+    document.getElementById('org-setting-name').value = organization.name;
+    document.getElementById('org-setting-welcome').value = organization.welcomeText || '';
+    document.getElementById('org-setting-color').value = organization.brandColor || '#2563eb';
+    const signInLink = document.getElementById('org-signin-link');
+    signInLink.href = `/login/${encodeURIComponent(organization.slug)}`;
+    signInLink.textContent = `${window.location.origin}${signInLink.href}`;
+    const preview = document.getElementById('org-setting-logo-preview');
+    preview.src = organization.logoData || '';
+    preview.classList.toggle('hidden', !organization.logoData);
+    this.clearOrganizationLogo = false;
+  }
+
+  async loadSongbookTags() {
+    try {
+      const data = await this.apiFetch('/api/songbook/tags');
+      this.songbookTags = data.tags || [];
+      this.populateSongbookTagSelects();
+      this.renderSongbookTagFilters();
+      const list = document.getElementById('songbook-tag-list');
+      if (list) list.innerHTML = this.songbookTags.map(tag => `<span class="songbook-tag-chip">${this.escapeHtml(tag.name)}</span>`).join('');
+    } catch (error) {
+      console.error('Failed to load songbook tags:', error);
+    }
+  }
+
+  populateSongbookTagSelects() {
+    ['edit-song-tag', 'import-song-tag'].forEach(id => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      const selected = select.value;
+      select.innerHTML = '<option value="" disabled>Choose a tag</option>' + this.songbookTags
+        .map(tag => `<option value="${this.escapeHtml(tag.name)}">${this.escapeHtml(tag.name)}</option>`).join('');
+      if (this.songbookTags.some(tag => tag.name.toLowerCase() === selected.toLowerCase())) select.value = selected;
+      else select.value = this.songbookTags[0]?.name || '';
+    });
+  }
+
+  renderSongbookTagFilters() {
+    const container = document.getElementById('filter-pills');
+    if (!container) return;
+    container.innerHTML = `<button type="button" class="pill ${this.currentSongbookTag ? '' : 'active'}" data-tag="">All tags</button>` +
+      this.songbookTags.map(tag => `<button type="button" class="pill ${tag.name.toLowerCase() === this.currentSongbookTag.toLowerCase() ? 'active' : ''}" data-tag="${this.escapeHtml(tag.name)}">${this.escapeHtml(tag.name)}</button>`).join('');
+  }
+
   initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    if (!this.currentGroupId) return;
+    const orgId = this.currentUser?.activeOrganizationId || 1;
+    const wsUrl = `${protocol}//${window.location.host}?client=controller&orgId=${encodeURIComponent(orgId)}&groupId=${encodeURIComponent(this.currentGroupId)}`;
 
     this.ws = new WebSocket(wsUrl);
+    const connection = this.ws;
 
     this.ws.onopen = () => {
       console.log('Controller connected to WebSocket server');
+      const queuedActions = this.pendingWsActions.splice(0);
+      queuedActions.forEach(message => {
+        if (this.ws === connection && connection.readyState === WebSocket.OPEN) connection.send(message);
+      });
     };
 
     this.ws.onmessage = (event) => {
@@ -106,17 +208,284 @@ class WorshipController {
     };
 
     this.ws.onclose = () => {
-      setTimeout(() => this.initWebSocket(), 2000);
+      if (this.ws === connection) setTimeout(() => this.initWebSocket(), 2000);
     };
   }
 
+  renderGroupSelectors() {
+    const activeSelector = document.getElementById('group-select');
+    if (!activeSelector) return;
+    const activeGroup = this.groups.find(group => Number(group.id) === Number(this.currentGroupId));
+    const activeLabel = document.getElementById('controller-active-group');
+    if (activeLabel) activeLabel.textContent = activeGroup?.name || 'Songbook';
+    activeSelector.innerHTML = '';
+    this.groups.forEach(group => {
+      const option = document.createElement('option');
+      option.value = group.id;
+      option.textContent = group.name;
+      option.selected = Number(group.id) === Number(this.currentGroupId);
+      activeSelector.appendChild(option);
+    });
+    activeSelector.hidden = this.groups.length === 0 || (this.groups.length <= 1 && !this.currentUser?.isMasterAdmin);
+  }
+
+  updateGroupPermissions() {
+    const active = this.groups.find(group => Number(group.id) === Number(this.currentGroupId));
+    const master = Boolean(this.currentUser?.isMasterAdmin);
+    const orgAdmin = Boolean(this.currentUser?.isOrgAdmin);
+    this.currentUser.activeGroup = active || this.currentUser.activeGroup;
+
+    const groupAdmin = active?.role === 'group_admin';
+    this.canDisplay = Boolean(active && (master || orgAdmin || groupAdmin || active.canDisplay));
+    this.canAddSongs = Boolean(active && (master || orgAdmin || groupAdmin || active.canAddSongs));
+    this.canEditSongs = Boolean(active && (master || orgAdmin || groupAdmin || active.canEditSongs));
+
+    const newSong = document.getElementById('btn-new-song');
+    if (newSong) newSong.classList.toggle('hidden', !this.canAddSongs);
+    const masterCatalogBtn = document.getElementById('btn-open-master-catalog');
+    if (masterCatalogBtn) masterCatalogBtn.classList.toggle('hidden', !this.canAddSongs);
+
+    const editSongBtn = document.getElementById('btn-edit-cued-song');
+    if (editSongBtn) editSongBtn.classList.toggle('hidden', !this.canEditSongs);
+
+    const managerButton = document.getElementById('btn-open-users');
+    if (managerButton) managerButton.style.display = (master || orgAdmin || (active && active.role === 'group_admin')) ? 'inline-flex' : 'none';
+
+    ['btn-prev-slide', 'btn-next-slide', 'btn-toggle-blank', 'btn-toggle-clear', 'btn-toggle-translit', 'btn-reset-display', 'btn-open-settings'].forEach(id => {
+      const button = document.getElementById(id);
+      if (button) button.classList.toggle('hidden', !this.canDisplay);
+    });
+
+    const displayLink = document.getElementById('btn-open-display');
+    const mobileDisplayLink = document.getElementById('mobile-open-display');
+    if (displayLink) {
+      const orgId = this.currentUser?.activeOrganizationId || 1;
+      displayLink.href = this.currentGroupId ? `/display?orgId=${encodeURIComponent(orgId)}&groupId=${encodeURIComponent(this.currentGroupId)}` : '/display';
+      displayLink.classList.toggle('hidden', !this.canDisplay);
+    }
+    if (mobileDisplayLink) {
+      mobileDisplayLink.href = displayLink?.href || '/display';
+      mobileDisplayLink.classList.toggle('hidden', !this.canDisplay);
+    }
+  }
+
+  showNoGroupMessage() {
+    const count = document.getElementById('results-count');
+    if (count) count.textContent = 'No active group';
+    document.getElementById('deck-song-title').textContent = 'No group selected';
+    document.getElementById('deck-song-meta').textContent = 'The shared songbook is available. Group permissions are needed to display songs.';
+  }
+
+  async loadManagedGroups(openGroupIds = []) {
+    const { groups } = await this.apiFetch('/api/groups');
+    const canManageOrganization = this.currentUser.isMasterAdmin || this.currentUser.isOrgAdmin;
+    this.manageGroups = canManageOrganization
+      ? groups.map(group => ({ ...group, role: 'group_admin' }))
+      : groups.filter(group => group.role === 'group_admin');
+    this.renderGroupSelectors();
+
+    const managed = await Promise.all(this.manageGroups.map(async group => {
+      const { members } = await this.apiFetch(`/api/groups/${group.id}/members`);
+      return { ...group, members };
+    }));
+    this.managedGroupRoster = managed;
+    this.renderManagedGroups(openGroupIds);
+  }
+
+  renderManagedGroups(openGroupIds = []) {
+    const list = document.getElementById('managed-groups-list');
+    if (!list) return;
+    const userForm = document.getElementById('form-create-user');
+    const formPlaceholder = document.getElementById('member-form-placeholder');
+    const canManageOrganization = this.currentUser.isMasterAdmin || this.currentUser.isOrgAdmin;
+    // Keep the reusable form alive when the group list is rebuilt after a save.
+    if (userForm && formPlaceholder && !formPlaceholder.contains(userForm)) formPlaceholder.before(userForm);
+    if (!this.managedGroupRoster?.length) {
+      const emptyMessage = canManageOrganization
+        ? 'No groups yet. Create the first group above.'
+        : 'You are not an admin of any groups.';
+      list.innerHTML = `<h4 class="managed-groups-title">${canManageOrganization ? 'All groups' : 'Groups you administer'}</h4><div class="empty-state">${emptyMessage}</div>`;
+      return;
+    }
+
+    const dragHint = canManageOrganization ? '<p class="group-drag-hint">Drag a member onto another group to add or move them.</p>' : '';
+    list.innerHTML = `<h4 class="managed-groups-title">${canManageOrganization ? 'All groups' : 'Groups you administer'}</h4>${dragHint}` + this.managedGroupRoster.map(group => {
+      const members = group.members.map(member => {
+        const locked = member.role === 'group_admin' && !canManageOrganization;
+        const access = [
+          member.role === 'group_admin' ? 'Group admin' : 'Member',
+          member.canDisplay ? 'Display' : '',
+          member.canAddSongs ? 'Add songs' : '',
+          member.canEditSongs ? 'Edit songs' : ''
+        ].filter(Boolean);
+        const roleEditor = canManageOrganization ? `
+          <label>Group role<select class="form-select-sm member-role">
+            <option value="member" ${member.role === 'member' ? 'selected' : ''}>Member</option>
+            <option value="group_admin" ${member.role === 'group_admin' ? 'selected' : ''}>Group admin</option>
+          </select></label>` : '';
+        const targetGroups = canManageOrganization
+          ? this.manageGroups.filter(target => Number(target.id) !== Number(group.id))
+          : [];
+        const assignmentEditor = canManageOrganization ? `
+          <div class="group-assignment-editor hidden">
+            <label>Destination group<select class="form-select-sm assignment-target-group" ${targetGroups.length ? '' : 'disabled'}>
+              <option value="">Choose a group…</option>
+              ${targetGroups.map(target => `<option value="${target.id}">${this.escapeHtml(target.name)}</option>`).join('')}
+            </select></label>
+            <label>Access in destination<select class="form-select-sm assignment-role"><option value="member">Member</option><option value="group_admin">Group admin</option></select></label>
+            <div class="member-permission-options">
+              <label><input type="checkbox" class="assignment-can-display" checked> Display</label>
+              <label><input type="checkbox" class="assignment-can-add"> Add songs</label>
+              <label><input type="checkbox" class="assignment-can-edit"> Edit songs</label>
+            </div>
+            <div class="group-member-actions">
+              <button type="button" class="btn-secondary-sm btn-assign-group-member" data-mode="add" ${targetGroups.length ? '' : 'disabled'}>Add to group</button>
+              <button type="button" class="btn-primary-sm btn-assign-group-member" data-mode="move" ${targetGroups.length ? '' : 'disabled'}>Move to group</button>
+              <button type="button" class="btn-text-sm btn-cancel-group-assignment">Cancel</button>
+            </div>
+          </div>` : '';
+        return `
+          <li class="group-member-entry ${canManageOrganization ? 'is-draggable' : ''}" data-group-id="${group.id}" data-user-id="${member.id}" ${canManageOrganization ? 'draggable="true"' : ''}>
+            <div class="group-member-line">
+              <div class="group-member-identity">${canManageOrganization ? '<span class="member-drag-handle" aria-hidden="true" title="Drag to another group">⋮⋮</span>' : ''}<strong>${this.escapeHtml(member.username)}</strong><small>${this.escapeHtml(member.email)}</small></div>
+              <div class="member-access-tags">${access.map(item => `<span>${item}</span>`).join('')}</div>
+              ${canManageOrganization ? '<button type="button" class="btn-text-sm btn-open-group-assignment">Change groups</button>' : ''}
+              <button type="button" class="btn-text-sm btn-edit-group-member" ${locked ? 'disabled' : ''}>Edit access</button>
+            </div>
+            <div class="group-member-editor hidden">
+              ${roleEditor}
+              <div class="member-permission-options">
+                <label><input type="checkbox" class="member-can-display" ${member.canDisplay ? 'checked' : ''}> Display</label>
+                <label><input type="checkbox" class="member-can-add" ${member.canAddSongs ? 'checked' : ''}> Add songs</label>
+                <label><input type="checkbox" class="member-can-edit" ${member.canEditSongs ? 'checked' : ''}> Edit songs</label>
+              </div>
+              <div class="group-member-actions">
+                <button type="button" class="btn-secondary-sm btn-save-group-member">Save access</button>
+                <button type="button" class="btn-danger-sm btn-remove-group-member">Remove from group</button>
+                <button type="button" class="btn-text-sm btn-cancel-group-member">Cancel</button>
+              </div>
+            </div>
+            ${assignmentEditor}
+          </li>`;
+      }).join('');
+      const expanded = openGroupIds.map(Number).includes(Number(group.id));
+      return `
+        <details class="managed-group-card" data-managed-group-id="${group.id}" ${expanded ? 'open' : ''}>
+          <summary><span class="managed-group-heading"><strong>${this.escapeHtml(group.name)}</strong></span><span class="managed-group-chevron" aria-hidden="true">⌄</span></summary>
+          <div class="managed-group-content">
+            <ul class="group-member-list">${members || '<li class="empty-state">No members yet.</li>'}</ul>
+            <button type="button" class="btn-add-group-member-link btn-add-group-member" data-group-id="${group.id}">+ Add member</button>
+            <div class="member-add-form-slot" data-member-form-slot="${group.id}"></div>
+          </div>
+        </details>`;
+    }).join('');
+  }
+
+  async saveGroupMember(row) {
+    if (!row) return;
+    const groupId = Number(row.dataset.groupId), userId = Number(row.dataset.userId);
+    try {
+      const group = this.managedGroupRoster.find(item => Number(item.id) === groupId);
+      const member = group?.members.find(item => Number(item.id) === userId);
+      const roleSelect = row.querySelector('.member-role');
+      await this.apiFetch(`/api/groups/${groupId}/members/${userId}`, {
+        method: 'PUT', body: {
+          role: roleSelect ? roleSelect.value : member?.role,
+          canDisplay: row.querySelector('.member-can-display').checked,
+          canAddSongs: row.querySelector('.member-can-add').checked,
+          canEditSongs: row.querySelector('.member-can-edit').checked
+        }
+      });
+      await this.loadManagedGroups([groupId]);
+    } catch (err) { alert(err.message); }
+  }
+
+  async assignGroupMember(row, mode) {
+    if (!row) return;
+    const sourceGroupId = Number(row.dataset.groupId);
+    const targetGroupId = Number(row.querySelector('.assignment-target-group').value);
+    const userId = Number(row.dataset.userId);
+    if (!targetGroupId) {
+      alert('Choose a destination group first.');
+      return;
+    }
+    const group = this.managedGroupRoster.find(item => Number(item.id) === sourceGroupId);
+    const member = group?.members.find(item => Number(item.id) === userId);
+    const actionText = mode === 'move' ? 'move' : 'add';
+    if (mode === 'move' && !confirm(`Move ${member?.username || 'this member'} out of ${group?.name || 'this group'} and into the selected group?`)) return;
+
+    try {
+      await this.apiFetch(`/api/groups/${sourceGroupId}/members/${userId}/assign`, {
+        method: 'POST',
+        body: {
+          targetGroupId,
+          mode,
+          role: row.querySelector('.assignment-role').value,
+          canDisplay: row.querySelector('.assignment-can-display').checked,
+          canAddSongs: row.querySelector('.assignment-can-add').checked,
+          canEditSongs: row.querySelector('.assignment-can-edit').checked
+        }
+      });
+      if (mode === 'move' && Number(this.currentUser.id) === userId && Number(this.currentGroupId) === sourceGroupId) {
+        window.location.reload();
+        return;
+      }
+      await this.loadManagedGroups([sourceGroupId, targetGroupId]);
+      alert(`Member ${actionText === 'move' ? 'moved' : 'added'} successfully.`);
+    } catch (err) { alert(err.message); }
+  }
+
+  async removeGroupMember(row) {
+    if (!row) return;
+    const groupId = Number(row.dataset.groupId), userId = Number(row.dataset.userId);
+    const group = this.managedGroupRoster.find(item => Number(item.id) === groupId);
+    const member = group?.members.find(item => Number(item.id) === userId);
+    if (!confirm(`Remove ${member?.username || 'this member'} from this group? Their account and other group memberships will remain.`)) return;
+    try {
+      await this.apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: 'DELETE' });
+      if (Number(this.currentUser.id) === userId && Number(this.currentGroupId) === groupId) {
+        window.location.reload();
+        return;
+      }
+      await this.loadManagedGroups([groupId]);
+    } catch (err) { alert(err.message); }
+  }
+
+  async switchGroup(groupId) {
+    if (!groupId || Number(groupId) === Number(this.currentGroupId)) return;
+    try {
+      await this.apiFetch('/api/auth/select-group', { method: 'POST', body: { groupId: Number(groupId) } });
+      this.currentGroupId = Number(groupId);
+      this.currentUser.activeGroupId = this.currentGroupId;
+      this.cuedSong = null;
+      this.sessionHistory = [];
+      this.ignoreInitialLiveState = true;
+      this.pendingWsActions = [];
+      this.renderGroupSelectors();
+      this.updateGroupPermissions();
+      if (this.ws) this.ws.close();
+      this.initWebSocket();
+      this.renderDeck();
+      this.renderHistory();
+      await this.loadSongs();
+    } catch (err) {
+      alert(err.message);
+      this.renderGroupSelectors();
+    }
+  }
+
   sendWsAction(action, payload = {}) {
+    if (!this.canDisplay) return;
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ action, ...payload }));
+    } else {
+      this.pendingWsActions.push(JSON.stringify({ action, ...payload }));
+      if (!this.ws || this.ws.readyState === WebSocket.CLOSED) this.initWebSocket();
     }
   }
 
   bindDOM() {
+    document.getElementById('group-select').addEventListener('change', event => this.switchGroup(event.target.value));
     // Logout
     document.getElementById('btn-logout').addEventListener('click', async () => {
       try {
@@ -127,25 +496,53 @@ class WorshipController {
       window.location.href = '/login';
     });
 
-    // Navigation Tabs (Songs vs History)
+    // Navigation Tabs (Groups vs Songs vs History)
+    const tabGroups = document.getElementById('tab-groups');
     const tabSongs = document.getElementById('tab-songs');
     const tabHistory = document.getElementById('tab-history');
+    const viewGroups = document.getElementById('view-groups');
     const viewSongs = document.getElementById('view-songs');
     const viewHistory = document.getElementById('view-history');
 
+    if (tabGroups) {
+      tabGroups.addEventListener('click', () => {
+        tabGroups.classList.add('active');
+        tabSongs.classList.remove('active');
+        tabHistory.classList.remove('active');
+        viewGroups.classList.remove('hidden');
+        viewSongs.classList.add('hidden');
+        viewHistory.classList.add('hidden');
+        this.loadGroupsOverview();
+      });
+    }
+
     tabSongs.addEventListener('click', () => {
       tabSongs.classList.add('active');
+      if (tabGroups) tabGroups.classList.remove('active');
       tabHistory.classList.remove('active');
       viewSongs.classList.remove('hidden');
+      if (viewGroups) viewGroups.classList.add('hidden');
       viewHistory.classList.add('hidden');
     });
 
     tabHistory.addEventListener('click', () => {
       tabHistory.classList.add('active');
+      if (tabGroups) tabGroups.classList.remove('active');
       tabSongs.classList.remove('active');
       viewHistory.classList.remove('hidden');
+      if (viewGroups) viewGroups.classList.add('hidden');
       viewSongs.classList.add('hidden');
     });
+
+    const btnQuickAddGroup = document.getElementById('btn-quick-add-group');
+    if (btnQuickAddGroup) {
+      btnQuickAddGroup.addEventListener('click', () => {
+        const modalUsers = document.getElementById('modal-users');
+        modalUsers.classList.remove('hidden');
+        document.getElementById('master-group-create').classList.remove('hidden');
+        document.getElementById('new-group-name').focus();
+      });
+    }
 
     const mobileHistoryButton = document.getElementById('btn-open-mobile-history');
     const mobileHistoryPopover = document.getElementById('mobile-history-popover');
@@ -180,15 +577,13 @@ class WorshipController {
       this.loadSongs('');
     });
 
-    // Language pills
-    const pills = document.querySelectorAll('#filter-pills .pill');
-    pills.forEach(pill => {
-      pill.addEventListener('click', () => {
-        pills.forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        this.currentLanguage = pill.getAttribute('data-lang');
-        this.loadSongs(searchInput.value.trim());
-      });
+    // Songbook tag filters
+    document.getElementById('filter-pills').addEventListener('click', event => {
+      const pill = event.target.closest('button[data-tag]');
+      if (!pill) return;
+      this.currentSongbookTag = pill.dataset.tag;
+      this.renderSongbookTagFilters();
+      this.loadSongs(searchInput.value.trim());
     });
 
     const mobileSearch = document.getElementById('mobile-song-search');
@@ -251,18 +646,84 @@ class WorshipController {
     // Settings Modal
     const modalSettings = document.getElementById('modal-settings');
     document.getElementById('btn-open-settings').addEventListener('click', () => {
+      document.getElementById('org-brand-settings').classList.toggle('hidden', !this.currentUser?.isOrgAdmin && !this.currentUser?.isMasterAdmin);
       modalSettings.classList.remove('hidden');
+      this.loadSongbookTags();
     });
 
-    // Theme pickers inside Settings Modal
-    const themeOptions = document.querySelectorAll('.theme-option');
-    themeOptions.forEach(opt => {
-      opt.addEventListener('click', () => {
-        themeOptions.forEach(o => o.classList.remove('active'));
-        opt.classList.add('active');
-        const theme = opt.getAttribute('data-theme');
-        this.sendWsAction('UPDATE_STYLE', { theme });
-      });
+    document.getElementById('form-songbook-tags').addEventListener('submit', async event => {
+      event.preventDefault();
+      const input = document.getElementById('songbook-tag-name');
+      const message = document.getElementById('songbook-tag-message');
+      try {
+        const result = await this.apiFetch('/api/songbook/tags', { method: 'POST', body: { name: input.value.trim() } });
+        this.songbookTags = result.tags || [];
+        this.populateSongbookTagSelects();
+        this.renderSongbookTagFilters();
+        const list = document.getElementById('songbook-tag-list');
+        list.innerHTML = this.songbookTags.map(tag => `<span class="songbook-tag-chip">${this.escapeHtml(tag.name)}</span>`).join('');
+        input.value = '';
+        message.textContent = 'Tag added. Song numbers will start separately for this tag.';
+      } catch (error) {
+        message.textContent = error.message;
+      }
+    });
+
+    const logoFile = document.getElementById('org-setting-logo');
+    const logoPreview = document.getElementById('org-setting-logo-preview');
+    logoFile.addEventListener('change', () => {
+      const file = logoFile.files[0];
+      if (!file) return;
+      if (file.size > 1024 * 1024 || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type)) {
+        document.getElementById('org-brand-settings-message').textContent = 'Choose a PNG, JPG, WEBP, or GIF logo smaller than 1 MB.';
+        logoFile.value = '';
+        return;
+      }
+      logoPreview.src = URL.createObjectURL(file);
+      logoPreview.classList.remove('hidden');
+      this.clearOrganizationLogo = false;
+    });
+
+    document.getElementById('btn-clear-org-logo').addEventListener('click', () => {
+      this.clearOrganizationLogo = true;
+      logoFile.value = '';
+      logoPreview.removeAttribute('src');
+      logoPreview.classList.add('hidden');
+    });
+
+    document.getElementById('form-org-brand-settings').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const org = this.currentUser?.activeOrganization;
+      if (!org) return;
+      const message = document.getElementById('org-brand-settings-message');
+      const file = logoFile.files[0];
+      let logoData;
+      try {
+        if (file) {
+          logoData = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Could not read the selected logo.'));
+            reader.readAsDataURL(file);
+          });
+        }
+        const body = {
+          name: document.getElementById('org-setting-name').value.trim(),
+          welcomeText: document.getElementById('org-setting-welcome').value.trim(),
+          brandColor: document.getElementById('org-setting-color').value
+        };
+        if (logoData !== undefined) body.logoData = logoData;
+        else if (this.clearOrganizationLogo) body.logoData = null;
+        message.textContent = 'Saving…';
+        const result = await this.apiFetch(`/api/organizations/${org.id}/settings`, { method: 'PUT', body });
+        this.currentUser.activeOrganization = result.organization;
+        message.textContent = 'Organisation identity saved.';
+        logoFile.value = '';
+        this.applyOrganizationBranding();
+        this.loadGroupsOverview();
+      } catch (error) {
+        message.textContent = error.message;
+      }
     });
 
     // Font size slider
@@ -302,31 +763,152 @@ class WorshipController {
     const modalUsers = document.getElementById('modal-users');
     const btnUsers = document.getElementById('btn-open-users');
     if (btnUsers) {
-      btnUsers.addEventListener('click', () => {
+      btnUsers.addEventListener('click', async () => {
         modalUsers.classList.remove('hidden');
-        this.loadUsersTable();
+        const canManageOrganization = this.currentUser.isMasterAdmin || this.currentUser.isOrgAdmin;
+        document.getElementById('master-group-create').classList.toggle('hidden', !canManageOrganization);
+        document.getElementById('new-group-admin-option').classList.toggle('hidden', !canManageOrganization);
+        try {
+          await this.loadManagedGroups();
+        } catch (err) { alert(err.message); }
       });
     }
 
+    document.getElementById('form-create-group').addEventListener('submit', async event => {
+      event.preventDefault();
+      try {
+        const result = await this.apiFetch('/api/groups', { method: 'POST', body: { name: document.getElementById('new-group-name').value.trim() } });
+        document.getElementById('new-group-name').value = '';
+        await this.loadManagedGroups([result.group.id]);
+        alert(`Group “${result.group.name}” created. Open it and choose Add member to assign its first group admin.`);
+      } catch (err) { alert(err.message); }
+    });
+
     // Create User Form
     const userForm = document.getElementById('form-create-user');
+    document.getElementById('btn-cancel-add-member').addEventListener('click', () => {
+      userForm.classList.add('hidden');
+      userForm.reset();
+      delete userForm.dataset.groupId;
+      document.getElementById('member-form-placeholder').before(userForm);
+    });
+    document.getElementById('managed-groups-list').addEventListener('click', event => {
+      const addButton = event.target.closest('.btn-add-group-member');
+      if (addButton) {
+        const group = this.managedGroupRoster.find(item => Number(item.id) === Number(addButton.dataset.groupId));
+        if (!group) return;
+        userForm.dataset.groupId = addButton.dataset.groupId;
+        document.getElementById('member-form-title').textContent = `Add a member to ${group.name}`;
+        document.getElementById('new-group-admin-option').classList.toggle('hidden', !(this.currentUser.isMasterAdmin || this.currentUser.isOrgAdmin));
+        document.getElementById('new-is-group-admin').checked = false;
+        const formSlot = managedGroupsList.querySelector(`[data-member-form-slot="${group.id}"]`);
+        if (formSlot) formSlot.appendChild(userForm);
+        userForm.classList.remove('hidden');
+        document.getElementById('new-email').focus({ preventScroll: true });
+        return;
+      }
+
+      const saveButton = event.target.closest('.btn-save-group-member');
+      if (saveButton) this.saveGroupMember(saveButton.closest('.group-member-entry'));
+      const removeButton = event.target.closest('.btn-remove-group-member');
+      if (removeButton) this.removeGroupMember(removeButton.closest('.group-member-entry'));
+      const editButton = event.target.closest('.btn-edit-group-member');
+      if (editButton) editButton.closest('.group-member-entry').querySelector('.group-member-editor').classList.remove('hidden');
+      const cancelButton = event.target.closest('.btn-cancel-group-member');
+      if (cancelButton) cancelButton.closest('.group-member-editor').classList.add('hidden');
+      const assignmentButton = event.target.closest('.btn-open-group-assignment');
+      if (assignmentButton) assignmentButton.closest('.group-member-entry').querySelector('.group-assignment-editor').classList.remove('hidden');
+      const cancelAssignmentButton = event.target.closest('.btn-cancel-group-assignment');
+      if (cancelAssignmentButton) cancelAssignmentButton.closest('.group-assignment-editor').classList.add('hidden');
+      const assignButton = event.target.closest('.btn-assign-group-member');
+      if (assignButton) this.assignGroupMember(assignButton.closest('.group-member-entry'), assignButton.dataset.mode);
+    });
+    const managedGroupsList = document.getElementById('managed-groups-list');
+    managedGroupsList.addEventListener('dragstart', event => {
+      if (!this.currentUser.isMasterAdmin && !this.currentUser.isOrgAdmin) return;
+      const member = event.target.closest('.group-member-entry[draggable="true"]');
+      if (!member) return;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', JSON.stringify({
+        sourceGroupId: member.dataset.groupId,
+        userId: member.dataset.userId
+      }));
+      this.draggedGroupMember = { sourceGroupId: Number(member.dataset.groupId), userId: Number(member.dataset.userId) };
+      member.classList.add('is-dragging');
+    });
+    managedGroupsList.addEventListener('dragend', event => {
+      this.draggedGroupMember = null;
+      event.target.closest('.group-member-entry')?.classList.remove('is-dragging');
+      managedGroupsList.querySelectorAll('.managed-group-card.drop-target').forEach(group => group.classList.remove('drop-target'));
+    });
+    managedGroupsList.addEventListener('dragover', event => {
+      const target = event.target.closest('.managed-group-card');
+      if ((!this.currentUser.isMasterAdmin && !this.currentUser.isOrgAdmin) || !target || !this.draggedGroupMember) return;
+      if (this.draggedGroupMember.sourceGroupId === Number(target.dataset.managedGroupId)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      target.classList.add('drop-target');
+    });
+    managedGroupsList.addEventListener('dragleave', event => {
+      const target = event.target.closest('.managed-group-card');
+      if (target && !target.contains(event.relatedTarget)) target.classList.remove('drop-target');
+    });
+    managedGroupsList.addEventListener('drop', event => {
+      const target = event.target.closest('.managed-group-card');
+      if ((!this.currentUser.isMasterAdmin && !this.currentUser.isOrgAdmin) || !target) return;
+      event.preventDefault();
+      target.classList.remove('drop-target');
+      try {
+        const { sourceGroupId, userId } = JSON.parse(event.dataTransfer.getData('text/plain'));
+        const source = this.managedGroupRoster.find(group => Number(group.id) === Number(sourceGroupId));
+        const member = source?.members.find(item => Number(item.id) === Number(userId));
+        const destinationId = Number(target.dataset.managedGroupId);
+        const destination = this.managedGroupRoster.find(group => Number(group.id) === destinationId);
+        if (!source || !member || !destination || Number(source.id) === destinationId) return;
+        if (destination.members.some(item => Number(item.id) === Number(member.id))) {
+          alert(`${member.username} is already in ${destination.name}.`);
+          return;
+        }
+        const row = managedGroupsList.querySelector(`.group-member-entry[data-group-id="${source.id}"][data-user-id="${member.id}"]`);
+        const editor = row?.querySelector('.group-assignment-editor');
+        const select = editor?.querySelector('.assignment-target-group');
+        if (!editor || !select) return;
+        select.value = String(destination.id);
+        editor.classList.remove('hidden');
+      } catch (err) {
+        console.error('Could not process group drop:', err);
+      }
+    });
     userForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const groupId = userForm.dataset.groupId;
+      if (!groupId) return;
       const username = document.getElementById('new-username').value.trim();
       const email = document.getElementById('new-email').value.trim();
       const password = document.getElementById('new-password').value.trim();
-      const permission = document.getElementById('new-permission').value;
+      const role = document.getElementById('new-is-group-admin').checked ? 'group_admin' : 'member';
 
       try {
-        await this.apiFetch('/api/users', {
-          method: 'POST', body: { username, email, password, permission }
+        await this.apiFetch(`/api/groups/${groupId}/members`, {
+          method: 'POST', body: {
+            username, email, password, role,
+            canDisplay: document.getElementById('new-can-display').checked,
+            canAddSongs: document.getElementById('new-can-add-songs').checked,
+            canEditSongs: document.getElementById('new-can-edit-songs').checked
+          }
         });
-        alert('User created successfully!');
+        alert('Member added successfully.');
         userForm.reset();
-        this.loadUsersTable();
-      } catch (err) {
-        alert(err.message);
-      }
+        userForm.classList.add('hidden');
+        delete userForm.dataset.groupId;
+        document.getElementById('member-form-placeholder').before(userForm);
+        await this.loadManagedGroups([Number(groupId)]);
+      } catch (err) { alert(err.message); }
+    });
+
+    document.getElementById('btn-song-history').addEventListener('click', () => this.openSongVersionHistory());
+    document.querySelectorAll('[data-close="modal-song-versions"]').forEach(button => {
+      button.addEventListener('click', () => document.getElementById('modal-song-versions').classList.add('hidden'));
     });
 
     // Song Creator / Editor
@@ -335,6 +917,7 @@ class WorshipController {
       document.getElementById('song-editor-title').textContent = 'Add New Song';
       document.getElementById('form-song-editor').reset();
       document.getElementById('edit-song-id').value = '';
+      document.getElementById('edit-song-tag').value = this.songbookTags[0]?.name || '';
       modalSongEditor.classList.remove('hidden');
     });
 
@@ -348,11 +931,12 @@ class WorshipController {
       document.getElementById('edit-song-translit').value = this.cuedSong.transliteration || '';
       document.getElementById('edit-song-chord').value = this.cuedSong.chord || '';
       document.getElementById('edit-song-language').value = this.cuedSong.language || this.inferSongLanguage(this.cuedSong) || '';
+      document.getElementById('edit-song-tag').value = this.cuedSong.songbook_tag || this.cuedSong.language || this.songbookTags[0]?.name || '';
       modalSongEditor.classList.remove('hidden');
     });
 
     document.getElementById('btn-delete-cued-song').addEventListener('click', async () => {
-      if (!this.cuedSong || !this.currentUser || this.currentUser.permission < 2) return;
+      if (!this.cuedSong || !this.currentUser?.isMasterAdmin) return;
       const song = this.cuedSong;
       const message = `Delete "${song.title}"? This cannot be undone.${
         this.liveState && this.liveState.currentSong && this.liveState.currentSong.id === song.id
@@ -387,6 +971,7 @@ class WorshipController {
       const title = document.getElementById('edit-song-title').value.trim();
       const alternate_title = document.getElementById('edit-song-alternate').value.trim();
       const language = document.getElementById('edit-song-language').value;
+      const songbook_tag = document.getElementById('edit-song-tag').value;
       const lyrics = document.getElementById('edit-song-lyrics').value.trim();
       const transliteration = document.getElementById('edit-song-translit').value.trim();
       const chord = document.getElementById('edit-song-chord').value.trim();
@@ -394,10 +979,10 @@ class WorshipController {
       const endpoint = id ? `/api/songs/${id}` : '/api/songs';
 
       try {
-        await this.apiFetch(endpoint, {
-          method, body: { title, alternate_title, language, lyrics, transliteration, chord }
+        const result = await this.apiFetch(endpoint, {
+          method, body: { title, alternate_title, language, songbook_tag, lyrics, transliteration, chord }
         });
-        alert(id ? 'Song updated successfully!' : 'Song created successfully!');
+        alert(id ? 'Song updated successfully!' : `Song created successfully. Its songbook number is ${result.song.song_number}.`);
         modalSongEditor.classList.add('hidden');
         this.loadSongs();
         if (id) {
@@ -407,6 +992,61 @@ class WorshipController {
         alert(err.message);
       }
     });
+
+    // Master Songs Explorer Actions
+    const btnMasterCatalog = document.getElementById('btn-open-master-catalog');
+    if (btnMasterCatalog) {
+      btnMasterCatalog.addEventListener('click', () => this.openMasterSongsExplorer());
+    }
+
+    const masterSearchInput = document.getElementById('master-song-search-input');
+    const btnClearMasterSearch = document.getElementById('btn-clear-master-search');
+    if (masterSearchInput) {
+      masterSearchInput.addEventListener('input', () => {
+        if (btnClearMasterSearch) btnClearMasterSearch.classList.toggle('hidden', !masterSearchInput.value);
+        clearTimeout(this.masterSearchDebounce);
+        this.masterSearchDebounce = setTimeout(() => {
+          this.searchMasterSongs(masterSearchInput.value.trim());
+        }, 250);
+      });
+    }
+
+    if (btnClearMasterSearch) {
+      btnClearMasterSearch.addEventListener('click', () => {
+        masterSearchInput.value = '';
+        btnClearMasterSearch.classList.add('hidden');
+        this.searchMasterSongs('');
+      });
+    }
+
+    const formImportSong = document.getElementById('form-import-song');
+    if (formImportSong) {
+      const importLanguage = document.getElementById('import-song-language');
+      const importTag = document.getElementById('import-song-tag');
+      importLanguage.addEventListener('change', () => {
+        if (this.songbookTags.some(tag => tag.name.toLowerCase() === importLanguage.value.toLowerCase())) importTag.value = importLanguage.value;
+      });
+      importTag.addEventListener('change', () => this.updateImportNumberSuggestion(importTag.value));
+      formImportSong.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const masterSongId = document.getElementById('import-master-song-id').value;
+        const language = importLanguage.value;
+        const songbookTag = importTag.value;
+
+        try {
+          const result = await this.apiFetch('/api/songbook/import', {
+            method: 'POST',
+            body: { masterSongId, language, songbookTag }
+          });
+          alert(`Song added to your organisation songbook as ${songbookTag} song #${result.song.song_number}.`);
+          document.getElementById('modal-import-song').classList.add('hidden');
+          document.getElementById('modal-master-songs').classList.add('hidden');
+          await this.loadSongs();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    }
 
     // Close buttons on all modals
     document.querySelectorAll('.modal-close-btn, [data-close]').forEach(btn => {
@@ -426,7 +1066,7 @@ class WorshipController {
     try {
       const params = new URLSearchParams();
       if (query) params.append('q', query);
-      if (this.currentLanguage) params.append('language', this.currentLanguage);
+      if (this.currentSongbookTag) params.append('tag', this.currentSongbookTag);
 
       const data = await this.apiFetch(`/api/songs?${params.toString()}`);
       this.songs = data.songs || [];
@@ -472,13 +1112,14 @@ class WorshipController {
           title.textContent = song.title;
           const number = document.createElement('small');
           const language = song.language || this.inferSongLanguage(song);
-          number.textContent = [language, song.alternate_title ? `#${song.alternate_title}` : ''].filter(Boolean).join(' · ');
+          number.textContent = [language, song.song_number ? `#${song.song_number}` : ''].filter(Boolean).join(' · ');
           option.append(title, number);
           option.addEventListener('click', async () => {
             const loaded = await this.previewSong(song.id);
-            if (loaded) this.sendWsAction('SET_SONG', { songId: song.id, slideIndex: 0 });
+            if (loaded && this.canDisplay) this.sendWsAction('SET_SONG', { songId: song.id, slideIndex: 0 });
             document.getElementById('mobile-song-search').value = song.title;
             resultsEl.classList.add('hidden');
+            if (window.innerWidth <= 768) this.switchMobileTab(this.canDisplay ? 'panel-live' : 'panel-deck');
           });
           resultsEl.appendChild(option);
         });
@@ -523,20 +1164,25 @@ class WorshipController {
       const item = document.createElement('div');
       item.className = `song-item ${isLive ? 'live' : ''} ${isCued ? 'cued' : ''}`;
       const language = song.language || this.inferSongLanguage(song);
+      const numberDisplay = song.song_number;
+      const numberingTag = song.songbook_tag || language;
       item.innerHTML = `
         <div class="song-item-left">
           <span class="song-item-title">${this.escapeHtml(song.title)}</span>
           <div class="song-item-meta">
-            ${language ? `<span class="song-item-language">${this.escapeHtml(language)}</span>` : ''}
-            ${song.alternate_title ? `<span class="song-item-number">#${this.escapeHtml(song.alternate_title)}</span>` : ''}
+            ${numberDisplay ? `<span class="song-item-number">#${this.escapeHtml(numberDisplay)}</span>` : ''}
+            ${numberingTag ? `<span class="song-item-language">${this.escapeHtml(numberingTag)}</span>` : ''}
+            ${language && language.toLowerCase() !== numberingTag.toLowerCase() ? `<span class="song-item-language">${this.escapeHtml(language)}</span>` : ''}
             ${song.chord ? `<span>• ${this.escapeHtml(song.chord)}</span>` : ''}
           </div>
         </div>
       `;
 
-      // Clicking song item opens preview in Column 2
+      // Selecting a song sends it live and also loads its slides in the deck.
       item.addEventListener('click', () => {
-        this.previewSong(song.id);
+        this.previewSong(song.id).then(loaded => {
+          if (loaded && this.canDisplay) this.sendWsAction('SET_SONG', { songId: song.id, slideIndex: 0 });
+        });
         // On mobile, automatically switch to deck tab
         if (window.innerWidth <= 768) {
           this.switchMobileTab('panel-deck');
@@ -547,10 +1193,148 @@ class WorshipController {
     });
   }
 
+  async loadGroupsOverview() {
+    const orgId = this.currentUser?.activeOrganizationId;
+    if (!orgId) return;
+
+    try {
+      const data = await this.apiFetch(`/api/organizations/${orgId}/overview`);
+      const container = document.getElementById('groups-cards-container');
+      const countEl = document.getElementById('groups-overview-count');
+      const badgeGroups = document.getElementById('badge-total-groups');
+      const orgHeading = document.getElementById('groups-org-name');
+
+      if (orgHeading) orgHeading.textContent = `${data.organization.name} Groups`;
+      if (countEl) countEl.textContent = `${data.groups.length} group${data.groups.length === 1 ? '' : 's'}`;
+      if (badgeGroups) badgeGroups.textContent = data.groups.length;
+
+      if (!data.groups || data.groups.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No groups created yet in this organisation.</p>
+            <button type="button" class="btn-primary-sm" id="btn-empty-add-group">+ Create Group</button>
+          </div>
+        `;
+        document.getElementById('btn-empty-add-group')?.addEventListener('click', () => {
+          document.getElementById('modal-users').classList.remove('hidden');
+          document.getElementById('master-group-create').classList.remove('hidden');
+        });
+        return;
+      }
+
+      container.innerHTML = data.groups.map(g => `
+        <div class="group-overview-card" data-group-id="${g.id}">
+          <div class="group-overview-card-header">
+            <span class="group-overview-card-title">${this.escapeHtml(g.name)}</span>
+            <span class="badge-member-count">👥 ${g.memberCount} ${g.memberCount === 1 ? 'Member' : 'Members'}</span>
+          </div>
+          <div class="group-overview-card-actions">
+            <button type="button" class="btn-secondary-sm btn-manage-group-members" data-group-id="${g.id}">
+              Manage Members
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.btn-manage-group-members').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const groupId = Number(btn.dataset.groupId);
+          const modalUsers = document.getElementById('modal-users');
+          modalUsers.classList.remove('hidden');
+          await this.loadManagedGroups([groupId]);
+        });
+      });
+    } catch (err) {
+      console.error('Failed to load groups overview:', err);
+    }
+  }
+
+  async openMasterSongsExplorer() {
+    const modal = document.getElementById('modal-master-songs');
+    modal.classList.remove('hidden');
+    await this.searchMasterSongs('');
+  }
+
+  async searchMasterSongs(query = '') {
+    const listEl = document.getElementById('master-songs-list');
+    const countEl = document.getElementById('master-results-count');
+    listEl.innerHTML = '<div class="empty-state">Searching master songs…</div>';
+
+    try {
+      const params = new URLSearchParams();
+      if (query) params.append('q', query);
+      const data = await this.apiFetch(`/api/master-songs?${params.toString()}`);
+      const songs = data.songs || [];
+
+      if (countEl) countEl.textContent = `Found ${songs.length} song${songs.length === 1 ? '' : 's'}`;
+
+      if (songs.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">No master songs found matching your search.</div>';
+        return;
+      }
+
+      listEl.innerHTML = songs.map(s => `
+        <div class="master-song-card" data-song-id="${s.id}">
+          <div class="master-song-info">
+            <div class="master-song-title-row">
+              <span class="master-song-title">${this.escapeHtml(s.title)}</span>
+              ${s.language ? `<span class="song-item-language">${this.escapeHtml(s.language)}</span>` : ''}
+              ${s.chord ? `<small>• ${this.escapeHtml(s.chord)}</small>` : ''}
+            </div>
+            ${s.alternate_title && !/^\d+$/.test(String(s.alternate_title).trim()) ? `<small class="text-muted">Alt: ${this.escapeHtml(s.alternate_title)}</small>` : ''}
+          </div>
+          <button type="button" class="btn-primary-sm btn-import-master-song" data-song-id="${s.id}" data-song-title="${this.escapeHtml(s.title)}" data-language="${this.escapeHtml(s.language || '')}" data-alternate-title="${this.escapeHtml(s.alternate_title || '')}">
+            + Add to Songbook
+          </button>
+        </div>
+      `).join('');
+
+      listEl.querySelectorAll('.btn-import-master-song').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const masterSongId = btn.dataset.songId;
+          const masterTitle = btn.dataset.songTitle;
+          const language = btn.dataset.language || this.inferSongLanguage({ title: masterTitle, alternate_title: btn.dataset.alternateTitle });
+
+          document.getElementById('import-master-song-id').value = masterSongId;
+          document.getElementById('import-song-title').textContent = `Add "${masterTitle}" to Songbook`;
+          document.getElementById('import-song-language').value = language;
+          const matchingTag = this.songbookTags.find(tag => tag.name.toLowerCase() === language.toLowerCase());
+          document.getElementById('import-song-tag').value = matchingTag?.name || this.songbookTags[0]?.name || '';
+
+          document.getElementById('modal-import-song').classList.remove('hidden');
+          document.getElementById('import-song-language').focus();
+          await this.updateImportNumberSuggestion(document.getElementById('import-song-tag').value);
+        });
+      });
+    } catch (err) {
+      listEl.innerHTML = `<div class="empty-state error">Error loading master songs: ${err.message}</div>`;
+    }
+  }
+
   inferSongLanguage(song) {
     const text = `${song.alternate_title || ''} ${song.title || ''}`.toLowerCase();
-    return ['Malayalam', 'Tamil', 'Hindi', 'Telugu', 'Nagamese', 'English']
-      .find(language => text.includes(language.toLowerCase())) || '';
+    const namedLanguage = ['Malayalam', 'Tamil', 'Hindi', 'Telugu', 'Nagamese', 'English']
+      .find(language => text.includes(language.toLowerCase()));
+    if (namedLanguage) return namedLanguage;
+    if (/[\u0D00-\u0D7F]/.test(text)) return 'Malayalam';
+    if (/[\u0B80-\u0BFF]/.test(text)) return 'Tamil';
+    if (/[\u0900-\u097F]/.test(text)) return 'Hindi';
+    if (/[\u0C00-\u0C7F]/.test(text)) return 'Telugu';
+    return /[a-z]/i.test(text) && /^[\x00-\x7F]*$/.test(text) ? 'English' : '';
+  }
+
+  async updateImportNumberSuggestion(tag) {
+    const message = document.getElementById('import-suggested-number');
+    if (!tag) {
+      message.textContent = 'Choose a songbook tag to see its next number.';
+      return;
+    }
+    try {
+      const data = await this.apiFetch(`/api/songbook/next-song-number?tag=${encodeURIComponent(tag)}`);
+      message.textContent = `Next ${tag} songbook number: ${data.nextSongNumber} (assigned automatically).`;
+    } catch (error) {
+      message.textContent = error.message;
+    }
   }
 
   // Load song into Deck (Private Preview mode)
@@ -594,7 +1378,7 @@ class WorshipController {
       metaEl.textContent = 'Browse the song library';
       statusTag.textContent = 'Private Preview';
       statusTag.className = 'deck-status-tag';
-      actionsEl.style.display = 'none';
+      actionsEl.classList.add('hidden');
       scrollEl.innerHTML = `
         <div class="deck-empty-state">
           <div class="deck-empty-icon">
@@ -605,7 +1389,7 @@ class WorshipController {
             </svg>
           </div>
           <h3>Private Slide Deck</h3>
-          <p>Choose any song from the left column to view its verses without projecting. Click any slide to send it straight to the screen!</p>
+          <p>${this.canDisplay ? 'Choose a song to preview its verses. Click a slide to send it to the screen.' : 'Browse and preview any shared song. Display access must be granted by a group admin.'}</p>
         </div>
       `;
       return;
@@ -615,11 +1399,14 @@ class WorshipController {
     const hasSlides = Array.isArray(this.cuedSong.slides) && this.cuedSong.slides.length > 0;
 
     titleEl.textContent = this.cuedSong.title;
-    metaEl.textContent = `${this.cuedSong.alternate_title ? `#${this.cuedSong.alternate_title} • ` : ''}${hasSlides ? `${this.cuedSong.slides.length} Slides` : 'No lyrics added'}`;
+    metaEl.textContent = `${this.cuedSong.song_number ? `#${this.cuedSong.song_number} • ` : ''}${hasSlides ? `${this.cuedSong.slides.length} Slides` : 'No lyrics added'}`;
     statusTag.textContent = isLive ? '● Live on Projector' : 'Private Preview (Not Live)';
     statusTag.className = `deck-status-tag ${isLive ? 'live' : ''}`;
-    actionsEl.style.display = 'flex';
+    actionsEl.classList.remove('hidden');
     document.getElementById('btn-cue-go-live').disabled = !hasSlides;
+    document.getElementById('btn-cue-go-live').classList.toggle('hidden', !this.canDisplay);
+    document.getElementById('btn-edit-cued-song').classList.toggle('hidden', !this.canEditSongs);
+    document.getElementById('btn-song-history').classList.remove('hidden');
 
     scrollEl.innerHTML = '';
 
@@ -665,12 +1452,9 @@ class WorshipController {
       `;
 
       // Clicking any card pushes this slide LIVE!
-      card.addEventListener('click', () => {
+      if (this.canDisplay) card.addEventListener('click', () => {
         this.sendWsAction('SET_SONG', { songId: this.cuedSong.id, slideIndex: idx });
-        // On mobile, switch to live tab for immediate big controls
-        if (window.innerWidth <= 768) {
-          this.switchMobileTab('panel-live');
-        }
+        if (window.innerWidth <= 768) this.switchMobileTab('panel-live');
       });
 
       scrollEl.appendChild(card);
@@ -700,9 +1484,10 @@ class WorshipController {
         : (slide.lines || []).map(line => `<div class="mobile-live-slide-line">${this.escapeHtml(line)}</div>`).join('');
       const card = document.createElement('button');
       card.type = 'button';
+      card.disabled = !this.canDisplay;
       card.className = `mobile-live-slide ${isActive ? 'active' : ''}`;
       card.innerHTML = `<span class="mobile-live-slide-label">${this.escapeHtml(slide.label || `Slide ${idx + 1}`)}${isActive ? ' · LIVE' : ''}</span><span class="mobile-live-slide-body">${lines}</span>`;
-      card.addEventListener('click', () => this.sendWsAction('SET_SONG', { songId: song.id, slideIndex: idx }));
+      if (this.canDisplay) card.addEventListener('click', () => this.sendWsAction('SET_SONG', { songId: song.id, slideIndex: idx }));
       listEl.appendChild(card);
     });
   }
@@ -712,6 +1497,9 @@ class WorshipController {
     this.liveState = state;
 
     const fontSize = Number(state.fontSize) || 54;
+    document.querySelectorAll('.theme-option').forEach(option => {
+      option.classList.toggle('active', option.dataset.theme === (state.theme || 'clean-white'));
+    });
     const fontSlider = document.getElementById('slider-font-size');
     const fontSizeVal = document.getElementById('font-size-val');
     const mobileFontSlider = document.getElementById('mobile-font-size');
@@ -805,6 +1593,7 @@ class WorshipController {
       id: song.id,
       title: song.title,
       alternate_title: song.alternate_title,
+      song_number: song.song_number,
       time: timeStr
     });
 
@@ -841,7 +1630,7 @@ class WorshipController {
         <div class="history-item-left">
           <span class="history-item-title">${idx + 1}. ${this.escapeHtml(item.title)}</span>
           <div class="history-item-meta">
-            ${item.alternate_title ? `<span>#${this.escapeHtml(item.alternate_title)}</span>` : ''}
+            ${item.song_number ? `<span>#${this.escapeHtml(item.song_number)}</span>` : ''}
             <span class="history-item-time">• Projected at ${item.time}</span>
           </div>
         </div>
@@ -883,7 +1672,7 @@ class WorshipController {
       title.textContent = item.title;
       const meta = document.createElement('span');
       meta.className = 'mobile-history-option-meta';
-      meta.textContent = item.alternate_title ? `#${item.alternate_title}` : item.time;
+      meta.textContent = item.song_number ? `#${item.song_number}` : item.time;
       option.append(title, meta);
       option.addEventListener('click', async () => {
         await this.previewSong(item.id);
@@ -893,53 +1682,46 @@ class WorshipController {
     });
   }
 
-  // Load Users for User Management Modal
-  async loadUsersTable() {
+  async openSongVersionHistory() {
+    if (!this.cuedSong) return;
+    const modal = document.getElementById('modal-song-versions');
+    const list = document.getElementById('song-version-list');
+    list.textContent = 'Loading version history…';
+    modal.classList.remove('hidden');
     try {
-      const data = await this.apiFetch('/api/users');
-      const tbody = document.getElementById('users-table-body');
-      tbody.innerHTML = '';
-
-      (data.users || []).forEach(u => {
-        const tr = document.createElement('tr');
-        const roleText = u.permission >= 2 ? 'Admin' : 'Operator';
-        const isSelf = this.currentUser && this.currentUser.id === u.id;
-
-        tr.innerHTML = `
-          <td><strong>${this.escapeHtml(u.username)}</strong></td>
-          <td>${this.escapeHtml(u.email)}</td>
-          <td><span class="badge ${u.permission >= 2 ? 'badge-accent' : ''}">${roleText}</span></td>
-          <td>
-            <button type="button" class="btn-secondary-sm btn-reset-user-pass">Reset Pass</button>
-            ${!isSelf ? '<button type="button" class="btn-danger-sm btn-del-user">Delete</button>' : ''}
-          </td>
-        `;
-
-        tr.querySelector('.btn-reset-user-pass').addEventListener('click', async () => {
-          const newPass = prompt(`Enter new password for ${u.username}:`);
-          if (newPass && newPass.trim()) {
-            await this.apiFetch(`/api/users/${u.id}`, {
-              method: 'PUT', body: { password: newPass.trim() }
-            });
-            alert('Password reset successfully!');
-          }
-        });
-
-        const delBtn = tr.querySelector('.btn-del-user');
-        if (delBtn) {
-          delBtn.addEventListener('click', async () => {
-            if (confirm(`Are you sure you want to delete user "${u.username}"?`)) {
-              await this.apiFetch(`/api/users/${u.id}`, { method: 'DELETE' });
-              this.loadUsersTable();
-            }
+      const { versions } = await this.apiFetch(`/api/songs/${this.cuedSong.id}/versions`);
+      list.replaceChildren();
+      if (!versions.length) {
+        list.textContent = 'No saved revisions yet. New edits will appear here.';
+        return;
+      }
+      versions.forEach(version => {
+        const card = document.createElement('article');
+        card.className = 'song-version-card';
+        const when = new Date(version.changedAt).toLocaleString();
+        const label = version.changeType === 'rollback' ? 'Rollback' : version.changeType === 'baseline' ? 'Starting copy' : version.changeType === 'create' ? 'Created' : 'Edit';
+        const preview = String(version.snapshot.lyrics || '').split(/\r?\n/).filter(Boolean).slice(0, 3).join(' · ');
+        card.innerHTML = `<div><strong>${this.escapeHtml(label)} · ${this.escapeHtml(version.snapshot.title || this.cuedSong.title)}</strong><p>${this.escapeHtml(version.actorUsername)} · ${this.escapeHtml(when)}</p><small>${this.escapeHtml(preview || 'No lyrics saved in this version')}</small></div>`;
+        if (this.canEditSongs) {
+          const rollback = document.createElement('button');
+          rollback.type = 'button';
+          rollback.className = 'btn-secondary-sm';
+          rollback.textContent = 'Restore this version';
+          rollback.addEventListener('click', async () => {
+            if (!confirm(`Restore the version saved ${when}? This will create a new history entry.`)) return;
+            try {
+              await this.apiFetch(`/api/songs/${this.cuedSong.id}/versions/${version.id}/rollback`, { method: 'POST' });
+              modal.classList.add('hidden');
+              await this.previewSong(this.cuedSong.id);
+              await this.loadSongs(document.getElementById('song-search-input').value.trim());
+              alert('Song restored. The rollback is recorded in its version history.');
+            } catch (err) { alert(err.message); }
           });
+          card.appendChild(rollback);
         }
-
-        tbody.appendChild(tr);
+        list.appendChild(card);
       });
-    } catch (err) {
-      console.error('Failed to load users:', err);
-    }
+    } catch (err) { list.textContent = err.message; }
   }
 
   // Keyboard Shortcuts (Space, Arrows, B, C, Numbers 1-9)

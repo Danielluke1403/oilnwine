@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organisation settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/home.css?v=20261022-mobile-no-back"><link rel="stylesheet" href="/css/add-songs.css?v=20261022-mobile-polish">
+</head>
+<body class="home-body add-songs-body">
+  <header class="home-header"><div class="page-brand-group"><a href="/" class="home-brand"><img id="org-logo" src="/assets/songs-of-overcomer-mark.svg" alt=""><span id="org-brand">Organisation</span></a><a href="/" class="page-back" data-return-back>← Back</a></div><div class="home-org-heading"><span>ADMINISTRATION</span><a id="org-name" href="/">Loading…</a></div><div class="home-account"><span class="avatar" id="user-avatar">U</span><strong id="user-name">Admin</strong></div></header>
+  <main class="songs-main settings-main">
+    <div class="songs-intro"><div><p class="eyebrow">WORKSPACE PREFERENCES</p><h2>Organisation settings</h2><p>Manage your organisation’s identity and songbook categories.</p></div></div>
+    <div id="settings-alert" class="songs-alert hidden" role="status"></div>
+    <section class="settings-grid">
+      <article class="settings-card"><h3>Organisation identity</h3><p>These details appear on your organisation’s sign-in page and workspace.</p><form id="identity-form" class="song-form">
+        <label class="wide">Organisation name<input id="setting-name" maxlength="80" required></label>
+        <label class="wide">Welcome message<input id="setting-welcome" maxlength="180" placeholder="Optional sign-in page message"></label>
+        <label>Brand colour<input id="setting-color" type="color" value="#285cf4"></label>
+        <label>Upload logo<input id="setting-logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+        <div class="logo-preview-wrap wide"><img id="logo-preview" class="hidden" alt="Logo preview"><button id="clear-logo" class="secondary-button" type="button">Remove current logo</button></div>
+        <div class="wide form-actions"><span id="identity-message" class="muted" role="status"></span><button class="primary-button" type="submit">Save identity</button></div>
+      </form></article>
+      <article class="settings-card"><h3>Songbook tags</h3><p>Each tag has its own songbook and song number sequence. Add categories such as Youth or Seniors.</p><form id="tag-form" class="tag-form"><input id="tag-name" maxlength="40" placeholder="e.g. Youth group" required><button class="primary-button" type="submit">Add tag</button></form><p id="tag-message" class="muted" role="status"></p><div id="tag-list" class="settings-tags"></div></article>
+    </section>
+  </main>
+  <script src="/js/settings.js?v=20261022"></script>
+  <script src="/js/back-link.js?v=20261022"></script>
+</body>
+</html>

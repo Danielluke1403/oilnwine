@@ -1,36 +1,53 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('login-form');
+  const loginForm = document.getElementById('login-form');
   const usernameInput = document.getElementById('username');
   const passwordInput = document.getElementById('password');
   const togglePasswordBtn = document.getElementById('toggle-password');
+  const btnLogin = document.getElementById('btn-login');
+  const loginSpinner = document.getElementById('login-spinner');
+  const loginArrow = btnLogin.querySelector('.btn-arrow');
+  const loginText = btnLogin.querySelector('.btn-text');
   const alertBox = document.getElementById('alert-box');
-  const submitBtn = document.getElementById('btn-login');
-  const spinner = document.getElementById('login-spinner');
-  const btnArrow = submitBtn.querySelector('.btn-arrow');
-  const btnText = submitBtn.querySelector('.btn-text');
+  const pathSlug = window.location.pathname.match(/^\/login\/([^/]+)\/?$/)?.[1];
+  const organizationSlug = new URLSearchParams(window.location.search).get('org') || (pathSlug ? decodeURIComponent(pathSlug) : null);
 
-  // If already logged in, check auth and redirect
-  const token = localStorage.getItem('oilnwine_token');
-  if (token) {
-    fetch('/api/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(res => {
-      if (res.ok) {
-        window.location.href = '/controller';
-      } else {
-        localStorage.removeItem('oilnwine_token');
-      }
-    })
-    .catch(() => {});
+  if (organizationSlug) {
+    fetch(`/api/organization-brand?slug=${encodeURIComponent(organizationSlug)}`)
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(({ organization }) => {
+        document.title = `Sign in | ${organization.name}`;
+        document.getElementById('brand-title').textContent = organization.name;
+        document.getElementById('card-title').textContent = `Sign in to ${organization.name}`;
+        document.documentElement.style.setProperty('--login-blue', organization.brandColor || '#2563eb');
+        const welcome = document.getElementById('brand-welcome');
+        if (organization.welcomeText) {
+          welcome.textContent = organization.welcomeText;
+          welcome.classList.remove('hidden');
+        }
+        if (organization.logoData) {
+          document.getElementById('brand-logo').src = organization.logoData;
+          document.getElementById('brand-icon').classList.remove('hidden');
+          let favicon = document.querySelector('link[rel="icon"]');
+          if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+          }
+          favicon.href = organization.logoData;
+        }
+      })
+      .catch(() => showAlert('Organisation sign-in page not found. You can still sign in from the main page.'));
   }
 
-  // Toggle password visibility
-  togglePasswordBtn.addEventListener('click', () => {
-    const isPassword = passwordInput.getAttribute('type') === 'password';
-    passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
-    togglePasswordBtn.textContent = isPassword ? 'Hide' : 'Show';
-  });
+  const token = localStorage.getItem('oilnwine_token');
+  if (token) {
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => {
+        if (res.ok) window.location.href = '/';
+        else localStorage.removeItem('oilnwine_token');
+      })
+      .catch(() => {});
+  }
 
   function showAlert(msg, type = 'error') {
     alertBox.textContent = msg;
@@ -38,57 +55,44 @@ document.addEventListener('DOMContentLoaded', () => {
     alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function hideAlert() {
-    alertBox.className = 'alert-box hidden';
-    alertBox.textContent = '';
-  }
+  togglePasswordBtn.addEventListener('click', () => {
+    const isPassword = passwordInput.type === 'password';
+    passwordInput.type = isPassword ? 'text' : 'password';
+    togglePasswordBtn.textContent = isPassword ? 'Hide' : 'Show';
+  });
 
-  form.addEventListener('submit', async (e) => {
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    hideAlert();
+    alertBox.className = 'alert-box hidden';
 
     const username = usernameInput.value.trim();
     const password = passwordInput.value;
+    if (!username || !password) return showAlert('Please enter both username and password.');
 
-    if (!username || !password) {
-      showAlert('Please enter both username and password.');
-      return;
-    }
-
-    // Set loading state
-    submitBtn.disabled = true;
-    spinner.classList.remove('hidden');
-    btnArrow.classList.add('hidden');
-    btnText.textContent = 'Signing in...';
+    btnLogin.disabled = true;
+    loginSpinner.classList.remove('hidden');
+    loginArrow.classList.add('hidden');
+    loginText.textContent = 'Signing in...';
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, organizationSlug })
       });
-
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Login failed.');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed. Please check your credentials.');
-      }
-
-      // Store token and user
       localStorage.setItem('oilnwine_token', data.token);
       localStorage.setItem('oilnwine_user', JSON.stringify(data.user));
-
-      showAlert('Signed in. Opening controller...', 'success');
-      setTimeout(() => {
-        window.location.href = '/controller';
-      }, 500);
-
+      showAlert('Signed in. Opening your home page...', 'success');
+      setTimeout(() => { window.location.href = '/'; }, 400);
     } catch (err) {
-      showAlert(err.message, 'error');
-      submitBtn.disabled = false;
-      spinner.classList.add('hidden');
-      btnArrow.classList.remove('hidden');
-      btnText.textContent = 'Sign in';
+      showAlert(err.message);
+      btnLogin.disabled = false;
+      loginSpinner.classList.add('hidden');
+      loginArrow.classList.remove('hidden');
+      loginText.textContent = 'Sign in';
     }
   });
 });
